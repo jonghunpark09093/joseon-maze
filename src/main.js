@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Maze } from './maze.js';
+import { DDGI } from './ddgi.js';
 
 const EYE_HEIGHT = 1.6;
 const PLAYER_RADIUS = 0.45;
@@ -43,6 +44,14 @@ scene.add(moon);
 // --- Maze -----------------------------------------------------------------
 const maze = new Maze({ cellsX: 12, cellsZ: 12, cellSize: 4, wallHeight: 3.2 });
 maze.build(scene);
+
+// --- DDGI (our directly-implemented global illumination) -------------------
+// Patches the maze materials so they receive indirect diffuse from the probe
+// grid. The lantern's warm light bounces off the red walls into dark corners.
+const ddgi = new DDGI(renderer, maze);
+ddgi.patch(maze.materials.wall);
+ddgi.patch(maze.materials.floor);
+ddgi.patch(maze.materials.ceiling);
 
 // --- Lantern (warm point light carried by the player) ---------------------
 const lantern = new THREE.PointLight(0xffaa55, 3.4, 22, 1.5);
@@ -198,7 +207,7 @@ function updateLantern(dt) {
 
 // Dev-only debug handle for inspecting the scene from the console.
 if (import.meta.env.DEV) {
-  window.__game = { THREE, scene, camera, maze, lantern };
+  window.__game = { THREE, scene, camera, maze, lantern, ddgi };
 }
 
 // --- Loop -----------------------------------------------------------------
@@ -211,6 +220,9 @@ function animate() {
   move(dt);
   updateLantern(dt);
   checkWin();
+
+  ddgi.setLantern(lantern.position, lantern.intensity);
+  ddgi.update();
 
   const g = maze.worldToGrid(camera.position.x, camera.position.z);
   hud.innerHTML = won

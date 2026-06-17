@@ -170,6 +170,10 @@ export class Maze {
 
     scene.add(group);
     this.group = group;
+    // Exposed so the DDGI module can patch them and reuse the albedo values
+    // when computing the indirect bounce.
+    this.materials = { floor: floorMat, ceiling: ceilMat, wall: wallMat };
+    this.albedo = { wall: 0x6e2a22, floor: 0x2a2118, ceiling: 0x171210 };
     return group;
   }
 }
