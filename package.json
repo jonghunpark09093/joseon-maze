@@ -1,0 +1,17 @@
+{
+  "name": "joseon-maze",
+  "version": "0.1.0",
+  "description": "조선 산속 공포 미로 탈출 — Three.js + DDGI 컴퓨터그래픽스 기말 프로젝트",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "three": "^0.183.2"
+  },
+  "devDependencies": {
+    "vite": "^8.0.5"
+  }
+}
