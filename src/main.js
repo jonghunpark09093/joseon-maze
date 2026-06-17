@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { PointerLockControls } from 'three/examples/jsm/controls/PointerLockControls.js';
 import { Maze } from './maze.js';
 
 const EYE_HEIGHT = 1.6;
@@ -34,7 +33,7 @@ const camera = new THREE.PerspectiveCamera(
 );
 
 // Faint moonlight so geometry is barely readable when the lantern is away.
-const ambient = new THREE.AmbientLight(0x223044, 0.18);
+const ambient = new THREE.AmbientLight(0x223044, 0.26);
 scene.add(ambient);
 
 const moon = new THREE.DirectionalLight(0x4060a0, 0.12);
@@ -46,7 +45,7 @@ const maze = new Maze({ cellsX: 12, cellsZ: 12, cellSize: 4, wallHeight: 3.2 });
 maze.build(scene);
 
 // --- Lantern (warm point light carried by the player) ---------------------
-const lantern = new THREE.PointLight(0xffaa55, 2.6, 16, 1.6);
+const lantern = new THREE.PointLight(0xffaa55, 3.4, 22, 1.5);
 lantern.castShadow = true;
 lantern.shadow.mapSize.set(1024, 1024);
 lantern.shadow.camera.near = 0.1;
@@ -62,19 +61,65 @@ const lanternOrb = new THREE.Mesh(
 scene.add(lanternOrb);
 
 // --- Controls -------------------------------------------------------------
-const controls = new PointerLockControls(camera, renderer.domElement);
+// Custom first-person look so the game does NOT depend on the Pointer Lock
+// API: pointer lock is used when available (best feel), but mouse-drag and
+// arrow keys also drive the view — which keeps it playable inside sandboxed
+// iframes/preview panels where pointer lock is blocked.
+const canvas = renderer.domElement;
+camera.rotation.order = 'YXZ';
 const start = maze.cellToWorld(maze.startCell.gx, maze.startCell.gz);
 camera.position.set(start.x, EYE_HEIGHT, start.z);
 
-overlay.addEventListener('click', () => controls.lock());
-controls.addEventListener('lock', () => overlay.classList.add('hidden'));
-controls.addEventListener('unlock', () => {
-  if (!won) overlay.classList.remove('hidden');
+const LOOK_SENS = 0.0022;
+const PITCH_LIMIT = Math.PI / 2 - 0.05;
+let yaw = 0;
+let pitch = 0;
+let started = false;
+let dragging = false;
+
+function startGame() {
+  if (won) return;
+  started = true;
+  overlay.classList.add('hidden');
+  canvas.requestPointerLock?.();
+}
+overlay.addEventListener('click', startGame);
+canvas.addEventListener('mousedown', () => {
+  dragging = true;
+  if (started) canvas.requestPointerLock?.();
+});
+window.addEventListener('mouseup', () => (dragging = false));
+
+document.addEventListener('mousemove', (e) => {
+  if (!started) return;
+  const locked = document.pointerLockElement === canvas;
+  if (!locked && !dragging) return;
+  yaw -= e.movementX * LOOK_SENS;
+  pitch -= e.movementY * LOOK_SENS;
+  pitch = Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, pitch));
+});
+
+// Pressing Esc releases pointer lock — bring the overlay back to resume.
+document.addEventListener('pointerlockchange', () => {
+  if (!won && started && document.pointerLockElement !== canvas) {
+    started = false;
+    overlay.classList.remove('hidden');
+  }
 });
 
 const keys = {};
 document.addEventListener('keydown', (e) => (keys[e.code] = true));
 document.addEventListener('keyup', (e) => (keys[e.code] = false));
+
+function updateLook(dt) {
+  const rate = 1.8 * dt;
+  if (keys['ArrowLeft']) yaw += rate;
+  if (keys['ArrowRight']) yaw -= rate;
+  if (keys['ArrowUp']) pitch += rate;
+  if (keys['ArrowDown']) pitch -= rate;
+  pitch = Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, pitch));
+  camera.rotation.set(pitch, yaw, 0);
+}
 
 // --- Movement with axis-separated collision -------------------------------
 const forward = new THREE.Vector3();
@@ -82,7 +127,7 @@ const right = new THREE.Vector3();
 const tmp = new THREE.Vector3();
 
 function move(dt) {
-  if (!controls.isLocked) return;
+  if (!started) return;
 
   camera.getWorldDirection(forward);
   forward.y = 0;
@@ -124,7 +169,8 @@ function checkWin() {
   const dz = camera.position.z - exitWorld.z;
   if (dx * dx + dz * dz < 1.6 * 1.6) {
     won = true;
-    controls.unlock();
+    started = false;
+    document.exitPointerLock?.();
     overlay.classList.remove('hidden');
     overlay.querySelector('h1').textContent = '탈 출 성 공';
     overlay.querySelector('.start').textContent = '당신은 산을 빠져나왔다.';
@@ -136,7 +182,7 @@ let flickerSeed = 0;
 
 function updateLantern(dt) {
   flickerSeed += dt;
-  const flick = 2.6 + Math.sin(flickerSeed * 11) * 0.18 + Math.sin(flickerSeed * 23) * 0.1;
+  const flick = 3.4 + Math.sin(flickerSeed * 11) * 0.22 + Math.sin(flickerSeed * 23) * 0.12;
   lantern.intensity = flick;
 
   // Place the lantern slightly down-right of the eye, in front of the camera.
@@ -152,7 +198,7 @@ function updateLantern(dt) {
 
 // Dev-only debug handle for inspecting the scene from the console.
 if (import.meta.env.DEV) {
-  window.__game = { THREE, scene, camera, maze, controls, lantern };
+  window.__game = { THREE, scene, camera, maze, lantern };
 }
 
 // --- Loop -----------------------------------------------------------------
@@ -161,6 +207,7 @@ const clock = new THREE.Clock();
 function animate() {
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), 0.05);
+  updateLook(dt);
   move(dt);
   updateLantern(dt);
   checkWin();
