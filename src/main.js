@@ -12,7 +12,7 @@ const overlay = document.getElementById('overlay');
 const hud = document.getElementById('hud');
 
 // --- Renderer -------------------------------------------------------------
-const renderer = new THREE.WebGLRenderer({ antialias: true });
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
@@ -208,6 +208,17 @@ function updateLantern(dt) {
 // Dev-only debug handle for inspecting the scene from the console.
 if (import.meta.env.DEV) {
   window.__game = { THREE, scene, camera, maze, lantern, ddgi };
+  // Save the current frame into captures/<name>.png via the dev capture endpoint.
+  window.__cap = async (name) => {
+    renderer.render(scene, camera);
+    const data = renderer.domElement.toDataURL('image/png');
+    const r = await fetch('/__capture', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, data }),
+    });
+    return r.json();
+  };
 }
 
 // --- Loop -----------------------------------------------------------------
