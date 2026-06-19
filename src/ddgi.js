@@ -176,6 +176,9 @@ export class DDGI {
       uAtlasCols: { value: this.atlasCols },
       uIndirect: { value: 1.6 },
       uChebyshev: { value: 1 }, // 0 = no visibility (shows light leaking)
+      // Push the shading point off the surface before the visibility test so a
+      // wall does not self-occlude (Chebyshev otherwise darkens its own face).
+      uNormalBias: { value: 0.7 },
     };
 
     this.rayRot = new THREE.Matrix3();
@@ -377,6 +380,7 @@ void main(){
          uniform int uAtlasCols;
          uniform float uIndirect;
          uniform float uChebyshev;
+         uniform float uNormalBias;
          ${GLSL_COMMON}
          ivec2 tileTexel(int p, vec3 d){
            int tileX = p % uAtlasCols;
@@ -387,7 +391,8 @@ void main(){
          }
          vec3 sampleProbe(int p, vec3 n){ return texelFetch(uIrr, tileTexel(p,n), 0).rgb; }
          vec2 sampleDepth(int p, vec3 d){ return texelFetch(uDepth, tileTexel(p,d), 0).rg; }
-         vec3 sampleIrradiance(vec3 P, vec3 N){
+         vec3 sampleIrradiance(vec3 Praw, vec3 N){
+           vec3 P = Praw + N * uNormalBias;
            vec3 g = (P - uProbeMin) / uProbeSpacing;
            ivec3 base = ivec3(floor(g));
            vec3 fr = g - vec3(base);
