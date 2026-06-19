@@ -167,13 +167,15 @@ export class DDGI {
 
     // Uniforms shared into every patched scene material (by reference).
     this.shared = {
-      uIrr: { value: this.irrA.texture },
+      uIrr: { value: this.irrA.textures[0] },
+      uDepth: { value: this.irrA.textures[1] },
       uProbeMin: { value: this.probeMin },
       uProbeSpacing: { value: this.probeSpacing },
       uCounts: { value: this.counts },
       uOcta: { value: OCTA },
       uAtlasCols: { value: this.atlasCols },
       uIndirect: { value: 1.6 },
+      uChebyshev: { value: 1 }, // 0 = no visibility (shows light leaking)
     };
 
     this.rayRot = new THREE.Matrix3();
@@ -195,7 +197,7 @@ export class DDGI {
     this.occTex = tex;
   }
 
-  _makeTarget(w, h) {
+  _makeTarget(w, h, count = 1) {
     return new THREE.WebGLRenderTarget(w, h, {
       type: THREE.HalfFloatType,
       format: THREE.RGBAFormat,
@@ -203,13 +205,17 @@ export class DDGI {
       magFilter: THREE.NearestFilter,
       depthBuffer: false,
       generateMipmaps: false,
+      count,
     });
   }
 
   _buildTargets() {
     this.rayRT = this._makeTarget(RAYS_PER_PROBE, this.probeTotal);
-    this.irrA = this._makeTarget(this.atlasW, this.atlasH);
-    this.irrB = this._makeTarget(this.atlasW, this.atlasH);
+    // MRT: textures[0] = octahedral irradiance, textures[1] = depth moments
+    // (mean, mean²) — the second moment drives the Chebyshev visibility test
+    // that stops light leaking through walls.
+    this.irrA = this._makeTarget(this.atlasW, this.atlasH, 2);
+    this.irrB = this._makeTarget(this.atlasW, this.atlasH, 2);
   }
 
   _buildPasses() {
@@ -277,13 +283,15 @@ void main(){
       glslVersion: THREE.GLSL3,
       uniforms: {
         uRay: { value: this.rayRT.texture },
-        uPrev: { value: this.irrB.texture },
+        uPrev: { value: this.irrB.textures[0] },
+        uPrevDepth: { value: this.irrB.textures[1] },
         uK: { value: RAYS_PER_PROBE },
         uOcta: { value: OCTA },
         uAtlasCols: { value: this.atlasCols },
         uProbeTotal: { value: this.probeTotal },
         uRayRot: { value: new THREE.Matrix3() },
         uBlend: { value: 1.0 },
+        uMaxDist: { value: this.maze.worldW },
       },
       vertexShader: FULLSCREEN_VERT,
       fragmentShader: /* glsl */ `
@@ -292,34 +300,48 @@ precision highp int;
 ${GLSL_COMMON}
 uniform sampler2D uRay;
 uniform sampler2D uPrev;
+uniform sampler2D uPrevDepth;
 uniform int uK;
 uniform int uOcta;
 uniform int uAtlasCols;
 uniform int uProbeTotal;
 uniform mat3 uRayRot;
 uniform float uBlend;
-out vec4 fragColor;
+uniform float uMaxDist;
+layout(location = 0) out vec4 oIrr;
+layout(location = 1) out vec4 oDepth;
 void main(){
   ivec2 px = ivec2(gl_FragCoord.xy);
   int tileX = px.x / uOcta;
   int tileY = px.y / uOcta;
   int p = tileY * uAtlasCols + tileX;
-  if(p >= uProbeTotal){ fragColor = vec4(0.0); return; }
+  if(p >= uProbeTotal){ oIrr = vec4(0.0); oDepth = vec4(0.0); return; }
   ivec2 local = px - ivec2(tileX, tileY) * uOcta;
   vec2 octUV = (vec2(local) + 0.5) / float(uOcta);
   vec3 dir = octDecode(octUV);
   vec3 acc = vec3(0.0);
   float wsum = 0.0;
+  // Depth moments use a sharper directional lobe so each texel stores the
+  // distance to geometry roughly along its own direction.
+  float dAcc = 0.0, d2Acc = 0.0, dwsum = 0.0;
   for(int k=0; k<uK; k++){
-    vec3 rad = texelFetch(uRay, ivec2(k, p), 0).rgb;
+    vec4 ray = texelFetch(uRay, ivec2(k, p), 0);
     vec3 rdir = normalize(uRayRot * sphericalFibonacci(float(k), float(uK)));
-    float w = max(dot(dir, rdir), 0.0);
-    acc += rad * w;
-    wsum += w;
+    float c = max(dot(dir, rdir), 0.0);
+    acc += ray.rgb * c;
+    wsum += c;
+    float wd = pow(c, 8.0);
+    float dist = min(ray.a, uMaxDist);
+    dAcc += dist * wd;
+    d2Acc += dist * dist * wd;
+    dwsum += wd;
   }
   vec3 irr = wsum > 0.0 ? acc / wsum : vec3(0.0);
-  vec3 prev = texelFetch(uPrev, px, 0).rgb;
-  fragColor = vec4(mix(prev, irr, uBlend), 1.0);
+  vec2 mom = dwsum > 0.0 ? vec2(dAcc, d2Acc) / dwsum : vec2(uMaxDist, uMaxDist * uMaxDist);
+  vec3 prevI = texelFetch(uPrev, px, 0).rgb;
+  vec2 prevD = texelFetch(uPrevDepth, px, 0).rg;
+  oIrr = vec4(mix(prevI, irr, uBlend), 1.0);
+  oDepth = vec4(mix(prevD, mom, uBlend), 0.0, 1.0);
 }
 `,
     });
@@ -347,21 +369,24 @@ void main(){
         `varying vec3 vWorldPos;
          varying vec3 vWorldNrm;
          uniform sampler2D uIrr;
+         uniform sampler2D uDepth;
          uniform vec3 uProbeMin;
          uniform vec3 uProbeSpacing;
          uniform ivec3 uCounts;
          uniform int uOcta;
          uniform int uAtlasCols;
          uniform float uIndirect;
+         uniform float uChebyshev;
          ${GLSL_COMMON}
-         vec3 sampleProbe(int p, vec3 n){
+         ivec2 tileTexel(int p, vec3 d){
            int tileX = p % uAtlasCols;
            int tileY = p / uAtlasCols;
-           vec2 oc = octEncode(n);
+           vec2 oc = octEncode(d);
            ivec2 local = ivec2(clamp(oc*float(uOcta), vec2(0.0), vec2(float(uOcta)-1.0)));
-           ivec2 texel = ivec2(tileX, tileY)*uOcta + local;
-           return texelFetch(uIrr, texel, 0).rgb;
+           return ivec2(tileX, tileY)*uOcta + local;
          }
+         vec3 sampleProbe(int p, vec3 n){ return texelFetch(uIrr, tileTexel(p,n), 0).rgb; }
+         vec2 sampleDepth(int p, vec3 d){ return texelFetch(uDepth, tileTexel(p,d), 0).rg; }
          vec3 sampleIrradiance(vec3 P, vec3 N){
            vec3 g = (P - uProbeMin) / uProbeSpacing;
            ivec3 base = ivec3(floor(g));
@@ -374,9 +399,27 @@ void main(){
              vec3 tl = mix(1.0 - fr, fr, vec3(o));
              float w = tl.x * tl.y * tl.z;
              vec3 ppos = uProbeMin + vec3(c) * uProbeSpacing;
-             float ndp = dot(N, normalize(ppos - P + N * 0.001));
+             vec3 toP = P - ppos;
+             float dist = length(toP);
+             vec3 dirPP = dist > 1e-4 ? toP / dist : N;
+             // Back-face weighting: probes "behind" the surface contribute less.
+             float ndp = dot(N, -dirPP);
              w *= clamp(ndp*0.5+0.5, 0.05, 1.0);
              int p = (c.z * uCounts.y + c.y) * uCounts.x + c.x;
+             // Chebyshev visibility (variance shadow map in distance): if the
+             // shading point is farther than the probe's mean distance to
+             // geometry in this direction, it is probably behind a wall — this
+             // is what stops indirect light leaking through maze walls.
+             vec2 mom = sampleDepth(p, dirPP);
+             float mean = mom.x;
+             float variance = max(mom.y - mean*mean, 2e-4);
+             float vis = 1.0;
+             if(dist > mean){
+               float dd = dist - mean;
+               vis = variance / (variance + dd*dd);
+               vis = vis*vis*vis;
+             }
+             w *= mix(1.0, max(vis, 0.02), uChebyshev);
              sum += w * sampleProbe(p, N);
              wsum += w;
            }
@@ -417,9 +460,10 @@ void main(){
     r.setRenderTarget(this.rayRT);
     r.render(this._fsScene, this._fsCam);
 
-    // Pass B: blend into irradiance atlas (ping-pong A<-B).
+    // Pass B: blend into irradiance + depth atlas (ping-pong A<-B).
     this.blendMat.uniforms.uRay.value = this.rayRT.texture;
-    this.blendMat.uniforms.uPrev.value = this.irrB.texture;
+    this.blendMat.uniforms.uPrev.value = this.irrB.textures[0];
+    this.blendMat.uniforms.uPrevDepth.value = this.irrB.textures[1];
     this.blendMat.uniforms.uBlend.value = this._frame < 2 ? 1.0 : 0.08;
     this._fsQuad.material = this.blendMat;
     r.setRenderTarget(this.irrA);
@@ -429,7 +473,8 @@ void main(){
     const t = this.irrA;
     this.irrA = this.irrB;
     this.irrB = t;
-    this.shared.uIrr.value = this.irrB.texture;
+    this.shared.uIrr.value = this.irrB.textures[0];
+    this.shared.uDepth.value = this.irrB.textures[1];
 
     r.setRenderTarget(prevTarget);
     this._frame++;

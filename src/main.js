@@ -208,6 +208,8 @@ function updateLantern(dt) {
 // Dev-only debug handle for inspecting the scene from the console.
 if (import.meta.env.DEV) {
   window.__game = { THREE, scene, camera, maze, lantern, ddgi };
+  // Deterministic camera orientation for repeatable report captures.
+  window.__setLook = (y, p = 0) => { yaw = y; pitch = p; };
   // Save the current frame into captures/<name>.png via the dev capture endpoint.
   window.__cap = async (name) => {
     renderer.render(scene, camera);
