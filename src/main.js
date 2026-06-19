@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Maze } from './maze.js';
 import { DDGI } from './ddgi.js';
+import { Pursuer } from './pursuer.js';
 
 const EYE_HEIGHT = 1.6;
 const PLAYER_RADIUS = 0.45;
@@ -88,6 +89,7 @@ let dragging = false;
 
 function startGame() {
   if (won) return;
+  if (dead) { location.reload(); return; }
   started = true;
   overlay.classList.add('hidden');
   canvas.requestPointerLock?.();
@@ -165,12 +167,26 @@ function move(dt) {
 
 // --- Win condition --------------------------------------------------------
 let won = false;
+let dead = false;
 const exitWorld = maze.cellToWorld(maze.exitCell.gx, maze.exitCell.gz);
 
 // A faint guiding glow at the exit.
 const exitLight = new THREE.PointLight(0x88ccff, 1.4, 10, 2);
 exitLight.position.set(exitWorld.x, 1.4, exitWorld.z);
 scene.add(exitLight);
+
+// --- Pursuer (the thing in the dark) --------------------------------------
+const pursuer = new Pursuer(maze, scene);
+
+function gameOver() {
+  if (dead || won) return;
+  dead = true;
+  started = false;
+  document.exitPointerLock?.();
+  overlay.classList.remove('hidden');
+  overlay.querySelector('h1').textContent = '붙 잡 혔 다';
+  overlay.querySelector('.start').textContent = '화면을 클릭해 다시 시작';
+}
 
 function checkWin() {
   if (won) return;
@@ -207,7 +223,7 @@ function updateLantern(dt) {
 
 // Dev-only debug handle for inspecting the scene from the console.
 if (import.meta.env.DEV) {
-  window.__game = { THREE, scene, camera, maze, lantern, ddgi };
+  window.__game = { THREE, scene, camera, maze, lantern, ddgi, pursuer };
   // Deterministic camera orientation for repeatable report captures.
   window.__setLook = (y, p = 0) => { yaw = y; pitch = p; };
   // Save the current frame into captures/<name>.png via the dev capture endpoint.
@@ -233,14 +249,22 @@ function animate() {
   move(dt);
   updateLantern(dt);
   checkWin();
+  if (started && !won && !dead && pursuer.update(dt, camera.position)) gameOver();
 
   ddgi.setLantern(lantern.position, lantern.intensity);
   ddgi.update();
 
   const g = maze.worldToGrid(camera.position.x, camera.position.z);
-  hud.innerHTML = won
-    ? '탈출 완료'
-    : `위치 [${g.gx}, ${g.gz}] · 출구 [${maze.exitCell.gx}, ${maze.exitCell.gz}]`;
+  if (won) {
+    hud.innerHTML = '탈출 완료';
+  } else if (dead) {
+    hud.innerHTML = '붙잡혔다';
+  } else {
+    const d = pursuer.distanceTo(camera.position);
+    const danger = d < 6 ? ' · <span style="color:#ff4040">바로 뒤에 무언가 있다…</span>'
+      : d < 12 ? ' · <span style="color:#ffb040">인기척</span>' : '';
+    hud.innerHTML = `위치 [${g.gx}, ${g.gz}] · 출구 [${maze.exitCell.gx}, ${maze.exitCell.gz}]${danger}`;
+  }
 
   renderer.render(scene, camera);
 }
