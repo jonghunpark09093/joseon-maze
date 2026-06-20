@@ -80,6 +80,22 @@ export class Maze {
     return candidates[(Math.random() * candidates.length) | 0];
   }
 
+  // A random reachable floor cell, optionally at least `minDist` BFS cells from
+  // `from`. Used by the roaming tiger for its spawn and wander targets.
+  roamTarget(from = this.startCell, minDist = 0) {
+    const dist = minDist > 0 ? this._bfsDistances(from) : null;
+    const cells = [];
+    for (let gz = 0; gz < this.gh; gz++) {
+      for (let gx = 0; gx < this.gw; gx++) {
+        if (this.isWallCell(gx, gz)) continue;
+        if (dist && dist[gz][gx] < minDist) continue;
+        cells.push({ gx, gz });
+      }
+    }
+    if (!cells.length) return { ...this.exitCell };
+    return cells[(Math.random() * cells.length) | 0];
+  }
+
   _generate() {
     const gw = this.gw;
     const gh = this.gh;

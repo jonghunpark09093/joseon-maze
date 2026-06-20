@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { Maze } from './maze.js';
 import { DDGI } from './ddgi.js';
 import { Pursuer } from './pursuer.js';
+import { Tiger } from './tiger.js';
 import { loadModel, modelUrl } from './models.js';
 
 const EYE_HEIGHT = 1.6;
@@ -234,6 +235,10 @@ scene.add(exitLight);
 const pursuer = new Pursuer(maze, scene);
 loadModel(modelUrl('pursuer.glb')).then((m) => m && pursuer.setModel(m));
 
+// A second predator: roams and pounces on line of sight (see src/tiger.js).
+const tiger = new Tiger(maze, scene);
+loadModel(modelUrl('tiger.glb')).then((m) => m && tiger.setModel(m));
+
 function gameOver() {
   if (dead || won) return;
   dead = true;
@@ -300,7 +305,7 @@ function updateLantern(dt) {
 
 // Dev-only debug handle for inspecting the scene from the console.
 if (import.meta.env.DEV) {
-  window.__game = { THREE, scene, camera, maze, lantern, ddgi, pursuer, viewScene };
+  window.__game = { THREE, scene, camera, maze, lantern, ddgi, pursuer, tiger, viewScene };
   // Deterministic camera orientation for repeatable report captures.
   window.__setLook = (y, p = 0) => { yaw = y; pitch = p; };
   // Save the current frame into captures/<name>.png via the dev capture endpoint.
@@ -330,7 +335,10 @@ function animate() {
   move(dt);
   updateLantern(dt);
   checkWin();
-  if (started && !won && !dead && pursuer.update(dt, camera.position)) gameOver();
+  if (started && !won && !dead) {
+    if (pursuer.update(dt, camera.position)) gameOver();
+    if (tiger.update(dt, camera.position)) gameOver();
+  }
 
   ddgi.setLantern(lantern.position, lantern.intensity);
   ddgi.update();
@@ -342,8 +350,15 @@ function animate() {
     hud.innerHTML = '붙잡혔다';
   } else {
     const d = pursuer.distanceTo(camera.position);
-    const danger = d < 6 ? ' · <span style="color:#ff4040">바로 뒤에 무언가 있다…</span>'
-      : d < 12 ? ' · <span style="color:#ffb040">인기척</span>' : '';
+    const td = tiger.distanceTo(camera.position);
+    let danger = '';
+    if (tiger.state === 'pounce' && td < 14) {
+      danger = ' · <span style="color:#ff7a1a">으르렁… 호랑이가 노려본다</span>';
+    } else if (d < 6) {
+      danger = ' · <span style="color:#ff4040">바로 뒤에 무언가 있다…</span>';
+    } else if (Math.min(d, td) < 12) {
+      danger = ' · <span style="color:#ffb040">인기척</span>';
+    }
     hud.innerHTML = `위치 [${g.gx}, ${g.gz}] · 출구 [${maze.exitCell.gx}, ${maze.exitCell.gz}]${danger}`;
   }
 
