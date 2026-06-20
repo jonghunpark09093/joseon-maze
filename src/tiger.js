@@ -63,6 +63,7 @@ export class Tiger {
   setModel({ root, mixer, actions }) {
     if (!root) return;
     this._proc.visible = false;
+    this.eyes.forEach((e) => (e.visible = false)); // hide placeholder eyes
     this.group.add(root);
     this._model = root;
     this.mixer = mixer;
