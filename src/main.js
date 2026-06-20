@@ -98,7 +98,7 @@ let lanternModel = null;
 loadModel(modelUrl('lantern.glb')).then((m) => {
   if (!m) return;
   lanternModel = m.root;
-  lanternModel.scale.setScalar(0.16);
+  lanternModel.scale.setScalar(0.18);
   // The point light sits inside the model, so its outward faces are backlit.
   // Give the paper/metal a warm emissive so the lantern reads as glowing
   // instead of a black silhouette.
@@ -121,10 +121,20 @@ loadModel(modelUrl('lantern.glb')).then((m) => {
   // matter where the player looks, and — drawn in the depth-cleared overlay
   // pass — never intersects world geometry. Offsets: x=right, y=up, z=-forward;
   // 180° turns the carry-bar off the right edge.
-  lanternModel.position.set(0.5, -0.45, -0.7);
+  lanternModel.position.set(0, -0.45, -0.7);
   lanternModel.rotation.y = Math.PI;
   viewScene.add(lanternModel);
+  placeViewmodel(); // anchor x to the right edge for the current aspect
 });
+
+// The viewmodel's horizontal screen position depends on aspect ratio (a fixed
+// camera-space x drifts toward center on wide screens, leaving the lantern
+// "floating" in the corner). Scale x by aspect so it always hugs the bottom-
+// right edge — reading as a held lantern hanging into view, not a floating prop.
+const LANTERN_ANCHOR_X = 0.48;
+function placeViewmodel() {
+  if (lanternModel) lanternModel.position.x = LANTERN_ANCHOR_X * viewCamera.aspect;
+}
 
 // --- Controls -------------------------------------------------------------
 // Custom first-person look so the game does NOT depend on the Pointer Lock
@@ -162,8 +172,15 @@ document.addEventListener('mousemove', (e) => {
   if (!started) return;
   const locked = document.pointerLockElement === canvas;
   if (!locked && !dragging) return;
-  yaw -= e.movementX * LOOK_SENS;
-  pitch -= e.movementY * LOOK_SENS;
+  // Clamp per-event movement. When pointer lock first engages, browsers can
+  // emit one huge movementX/Y (the jump from the cursor's old position), which
+  // whips the view around violently right as the game starts. Capping the delta
+  // kills that spin while still allowing fast normal looks.
+  const MAX_DELTA = 120;
+  const dx = Math.max(-MAX_DELTA, Math.min(MAX_DELTA, e.movementX));
+  const dy = Math.max(-MAX_DELTA, Math.min(MAX_DELTA, e.movementY));
+  yaw -= dx * LOOK_SENS;
+  pitch -= dy * LOOK_SENS;
   pitch = Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, pitch));
 });
 
@@ -327,7 +344,7 @@ function updateLantern(dt) {
 
 // Dev-only debug handle for inspecting the scene from the console.
 if (import.meta.env.DEV) {
-  window.__game = { THREE, scene, camera, maze, lantern, ddgi, pursuer, tiger, viewScene };
+  window.__game = { THREE, scene, camera, maze, lantern, ddgi, pursuer, tiger, viewScene, viewCamera, renderer };
   // Deterministic camera orientation for repeatable report captures.
   window.__setLook = (y, p = 0) => { yaw = y; pitch = p; };
   // Save the current frame into captures/<name>.png via the dev capture endpoint.
@@ -407,4 +424,5 @@ window.addEventListener('resize', () => {
   viewCamera.aspect = aspect;
   viewCamera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
+  placeViewmodel();
 });
