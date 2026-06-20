@@ -34,9 +34,25 @@ const camera = new THREE.PerspectiveCamera(
   0.05,
   200
 );
-// Add the camera to the scene graph so objects parented to it (the held
-// lantern viewmodel) are traversed and rendered.
-scene.add(camera);
+
+// --- Viewmodel overlay pass ----------------------------------------------
+// The held lantern is rendered in its own scene with a fixed origin camera,
+// then composited on top of the world with the depth buffer cleared. This is
+// the standard FPS "viewmodel" trick: because it draws after a depth clear, it
+// is never tested against (and so never clips into) world geometry. Walking
+// face-first into a wall can no longer push the lantern model inside the wall.
+const viewScene = new THREE.Scene();
+const viewCamera = new THREE.PerspectiveCamera(
+  72,
+  window.innerWidth / window.innerHeight,
+  0.01,
+  10
+);
+// Warm fill so the lantern's frame has some shape; emissive paper glows on top.
+viewScene.add(new THREE.AmbientLight(0xffd9a0, 0.5));
+const viewFill = new THREE.PointLight(0xffb060, 2.0, 4, 1.5);
+viewFill.position.set(0.5, 0.1, 0.2);
+viewScene.add(viewFill);
 
 // Faint moonlight so geometry is barely readable when the lantern is away.
 const ambient = new THREE.AmbientLight(0x223044, 0.26);
@@ -98,13 +114,14 @@ loadModel(modelUrl('lantern.glb')).then((m) => {
     }
   });
   lanternOrb.visible = false;
-  // Parent to the camera as a view-locked viewmodel: fixed in camera space so
-  // it holds the same screen spot no matter where the player looks (looking
-  // down no longer reveals it floating). Offsets are in camera-local space
-  // (x=right, y=up, z=-forward); 180° turns the carry-bar off the right edge.
+  // Live in the overlay viewScene at a fixed transform relative to the static
+  // viewCamera (origin, looking down -Z). It holds the same screen spot no
+  // matter where the player looks, and — drawn in the depth-cleared overlay
+  // pass — never intersects world geometry. Offsets: x=right, y=up, z=-forward;
+  // 180° turns the carry-bar off the right edge.
   lanternModel.position.set(0.5, -0.45, -0.7);
   lanternModel.rotation.y = Math.PI;
-  camera.add(lanternModel);
+  viewScene.add(lanternModel);
 });
 
 // --- Controls -------------------------------------------------------------
@@ -250,10 +267,11 @@ function updateLantern(dt) {
   lantern.intensity = flick;
 
   if (lanternModel) {
-    // The lantern is a view-locked child of the camera; sample its world
-    // position so the point light sits at the visible flame.
+    // The lantern viewmodel lives in the overlay scene, so derive the flame's
+    // would-be world position by mapping its fixed camera-space offset through
+    // the real camera matrix. The point light then sits at the visible flame.
     camera.updateMatrixWorld();
-    lanternModel.getWorldPosition(lanternWorld);
+    lanternWorld.set(0.5, -0.45, -0.7).applyMatrix4(camera.matrixWorld);
     // Keep the light out of walls. The viewmodel sits ~0.85m ahead of the eye,
     // so close to a wall that world point can fall *behind* the wall — the
     // light is then occluded and the whole view goes black. March back toward
@@ -287,7 +305,11 @@ if (import.meta.env.DEV) {
   window.__setLook = (y, p = 0) => { yaw = y; pitch = p; };
   // Save the current frame into captures/<name>.png via the dev capture endpoint.
   window.__cap = async (name) => {
+    renderer.autoClear = true;
     renderer.render(scene, camera);
+    renderer.autoClear = false;
+    renderer.clearDepth();
+    renderer.render(viewScene, viewCamera);
     const data = renderer.domElement.toDataURL('image/png');
     const r = await fetch('/__capture', {
       method: 'POST',
@@ -325,12 +347,21 @@ function animate() {
     hud.innerHTML = `위치 [${g.gx}, ${g.gz}] · 출구 [${maze.exitCell.gx}, ${maze.exitCell.gz}]${danger}`;
   }
 
+  renderer.autoClear = true;
   renderer.render(scene, camera);
+  // Overlay pass: clear only the depth buffer and draw the held lantern on top
+  // so it can never clip into world geometry.
+  renderer.autoClear = false;
+  renderer.clearDepth();
+  renderer.render(viewScene, viewCamera);
 }
 animate();
 
 window.addEventListener('resize', () => {
-  camera.aspect = window.innerWidth / window.innerHeight;
+  const aspect = window.innerWidth / window.innerHeight;
+  camera.aspect = aspect;
   camera.updateProjectionMatrix();
+  viewCamera.aspect = aspect;
+  viewCamera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
