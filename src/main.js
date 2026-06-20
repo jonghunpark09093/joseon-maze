@@ -77,7 +77,23 @@ let lanternModel = null;
 loadModel(modelUrl('lantern.glb')).then((m) => {
   if (!m) return;
   lanternModel = m.root;
-  lanternModel.scale.setScalar(0.4);
+  lanternModel.scale.setScalar(0.16);
+  // The point light sits inside the model, so its outward faces are backlit.
+  // Give the paper/metal a warm emissive so the lantern reads as glowing
+  // instead of a black silhouette.
+  lanternModel.traverse((o) => {
+    if (o.isMesh && o.material) {
+      // Only the bright paper shade should glow, not the dark wood frame.
+      // Driving emissive through the diffuse map modulates the glow by texel
+      // brightness: pale paper glows, dark wood stays dim.
+      o.material.emissive = new THREE.Color(0xffb060);
+      o.material.emissiveMap = o.material.map;
+      o.material.emissiveIntensity = 0.9;
+      // The light lives inside the lantern; without this it casts a giant
+      // self-shadow across the whole view.
+      o.castShadow = false;
+    }
+  });
   lanternOrb.visible = false;
   scene.add(lanternModel);
 });
@@ -233,8 +249,15 @@ function updateLantern(dt) {
     .add(tmp.set(0, -0.35, 0));
   lanternOrb.position.copy(lantern.position);
   if (lanternModel) {
-    lanternModel.position.copy(lantern.position);
-    lanternModel.rotation.y = yaw;
+    lanternModel.position
+      .copy(camera.position)
+      .addScaledVector(forward, 0.7)
+      .addScaledVector(right, 0.5)
+      .add(tmp.set(0, -0.45, 0));
+    // 180° turns the carry-bar horizontal toward the right edge; pushed far
+    // enough right that the bar leaves frame and only the lit body shows —
+    // reads as held by an unseen hand off-screen.
+    lanternModel.rotation.y = yaw + Math.PI;
   }
 }
 
