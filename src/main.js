@@ -173,6 +173,7 @@ function updateLook(dt) {
 const forward = new THREE.Vector3();
 const right = new THREE.Vector3();
 const tmp = new THREE.Vector3();
+const lanternWorld = new THREE.Vector3();
 
 function move(dt) {
   if (!started) return;
@@ -252,7 +253,20 @@ function updateLantern(dt) {
     // The lantern is a view-locked child of the camera; sample its world
     // position so the point light sits at the visible flame.
     camera.updateMatrixWorld();
-    lanternModel.getWorldPosition(lantern.position);
+    lanternModel.getWorldPosition(lanternWorld);
+    // Keep the light out of walls. The viewmodel sits ~0.85m ahead of the eye,
+    // so close to a wall that world point can fall *behind* the wall — the
+    // light is then occluded and the whole view goes black. March back toward
+    // the eye (always wall-free) and take the first point clear of any wall.
+    lantern.position.copy(camera.position);
+    for (let t = 1; t > 0.01; t -= 0.2) {
+      const x = camera.position.x + (lanternWorld.x - camera.position.x) * t;
+      const z = camera.position.z + (lanternWorld.z - camera.position.z) * t;
+      if (!maze.collides(x, z, 0.15)) {
+        lantern.position.set(x, lanternWorld.y, z);
+        break;
+      }
+    }
   } else {
     // Procedural fallback: place the glowing orb down-right, in front of eye.
     camera.getWorldDirection(forward);
