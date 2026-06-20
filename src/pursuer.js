@@ -64,6 +64,9 @@ export class Pursuer {
     this.mixer = null;
     this._model = null; // loaded glTF root, if any
     this._bob = 0;      // phase for the procedural float fallback
+    this._lurkAction = null;
+    this._chaseAction = null;
+    this._activeAction = null;
   }
 
   // Swap the procedural capsule for a loaded glTF model. Hides the capsule,
@@ -76,9 +79,25 @@ export class Pursuer {
     this._model = root;
     this.mixer = mixer;
     if (mixer && actions) {
-      const walk = actions.walk || actions.Walk || actions.run || Object.values(actions)[0];
-      walk?.reset().play();
+      // Resolve a "walk" clip for lurking and a "run" clip for the chase by
+      // matching clip names loosely (Meshy exports e.g. Unsteady_Walk, Running).
+      const find = (re) => Object.entries(actions).find(([k]) => re.test(k))?.[1] || null;
+      const first = Object.values(actions)[0];
+      this._lurkAction = find(/unsteady|walk/i) || first;
+      this._chaseAction = find(/run/i) || first;
+      this._activeAction = this._lurkAction;
+      this._activeAction?.reset().play();
     }
+  }
+
+  // Crossfade between the lurk-walk and chase-run clips when the state changes.
+  _syncClip() {
+    if (!this.mixer || !this._chaseAction) return;
+    const want = this.state === 'chase' ? this._chaseAction : this._lurkAction;
+    if (!want || want === this._activeAction) return;
+    want.reset().setEffectiveWeight(1).fadeIn(0.25).play();
+    this._activeAction?.fadeOut(0.25);
+    this._activeAction = want;
   }
 
   _key(x, z) { return z * this.maze.gw + x; }
@@ -120,6 +139,7 @@ export class Pursuer {
   update(dt, playerPos) {
     if (this.mixer) this.mixer.update(dt);
     this.justWoke = false;
+    this._syncClip();
 
     const mg = this.maze.worldToGrid(this.pos.x, this.pos.z);
     const pg = this.maze.worldToGrid(playerPos.x, playerPos.z);
