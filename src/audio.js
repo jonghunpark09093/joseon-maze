@@ -26,6 +26,7 @@ export class GhostAudio {
     this.mode = 'cry';       // 'cry' | 'laugh'
     this._next = 0;          // next scheduled utterance time (ctx clock)
     this._suddenLaugh = false;
+    this._demoUntil = 0;     // while > ctx time, force full-volume preview
   }
 
   init() {
@@ -52,6 +53,22 @@ export class GhostAudio {
   silence() {
     if (!this.ready) return;
     this.master.gain.setTargetAtTime(0, this.ctx.currentTime, 0.2);
+  }
+
+  // Immediate full-volume preview so you can hear the voice on demand (the
+  // distance fade otherwise keeps it near-silent until the ghost is close).
+  // Plays two sobs then a sudden manic laugh. Works on the title screen too.
+  demo() {
+    if (!this.ready) return;
+    const t = this.ctx.currentTime;
+    this.master.gain.cancelScheduledValues(t);
+    this.master.gain.setValueAtTime(0.7, t);
+    this.distGain.gain.cancelScheduledValues(t);
+    this.distGain.gain.setValueAtTime(0.9, t);
+    this._demoUntil = t + 5.2; // setProximity won't override distance for ~5s
+    this._sob(t + 0.1);
+    this._sob(t + 1.9);
+    this._laugh(t + 3.5, 1); // the jump-scare laugh
   }
 
   // One vocal utterance: detuned glottal saws + vibrato, shaped by formant
@@ -145,6 +162,7 @@ export class GhostAudio {
   setProximity(dist, chasing) {
     if (!this.ready) return;
     const t = this.ctx.currentTime;
+    if (t < this._demoUntil) return; // a preview is playing; don't fight it
 
     const near = clamp01((48 - dist) / 43);
     this.distGain.gain.setTargetAtTime(near * near * 0.9, t, 0.3);

@@ -184,8 +184,12 @@ document.addEventListener('keyup', (e) => (keys[e.code] = false));
 document.addEventListener('keydown', (e) => {
   if (e.code !== 'KeyM') return;
   audioOn = !audioOn;
-  if (audioOn) ghostAudio.init();
-  else ghostAudio.silence();
+  if (audioOn) {
+    ghostAudio.init();
+    ghostAudio.demo(); // immediate audible preview (cry → sudden laugh)
+  } else {
+    ghostAudio.silence();
+  }
   hud.dataset.audio = audioOn ? 'on' : 'off';
 });
 
