@@ -34,6 +34,9 @@ const camera = new THREE.PerspectiveCamera(
   0.05,
   200
 );
+// Add the camera to the scene graph so objects parented to it (the held
+// lantern viewmodel) are traversed and rendered.
+scene.add(camera);
 
 // Faint moonlight so geometry is barely readable when the lantern is away.
 const ambient = new THREE.AmbientLight(0x223044, 0.26);
@@ -95,7 +98,13 @@ loadModel(modelUrl('lantern.glb')).then((m) => {
     }
   });
   lanternOrb.visible = false;
-  scene.add(lanternModel);
+  // Parent to the camera as a view-locked viewmodel: fixed in camera space so
+  // it holds the same screen spot no matter where the player looks (looking
+  // down no longer reveals it floating). Offsets are in camera-local space
+  // (x=right, y=up, z=-forward); 180° turns the carry-bar off the right edge.
+  lanternModel.position.set(0.5, -0.45, -0.7);
+  lanternModel.rotation.y = Math.PI;
+  camera.add(lanternModel);
 });
 
 // --- Controls -------------------------------------------------------------
@@ -239,25 +248,21 @@ function updateLantern(dt) {
   const flick = 3.4 + Math.sin(flickerSeed * 11) * 0.22 + Math.sin(flickerSeed * 23) * 0.12;
   lantern.intensity = flick;
 
-  // Place the lantern slightly down-right of the eye, in front of the camera.
-  camera.getWorldDirection(forward);
-  right.crossVectors(forward, camera.up).normalize();
-  lantern.position
-    .copy(camera.position)
-    .addScaledVector(forward, 0.4)
-    .addScaledVector(right, 0.3)
-    .add(tmp.set(0, -0.35, 0));
-  lanternOrb.position.copy(lantern.position);
   if (lanternModel) {
-    lanternModel.position
+    // The lantern is a view-locked child of the camera; sample its world
+    // position so the point light sits at the visible flame.
+    camera.updateMatrixWorld();
+    lanternModel.getWorldPosition(lantern.position);
+  } else {
+    // Procedural fallback: place the glowing orb down-right, in front of eye.
+    camera.getWorldDirection(forward);
+    right.crossVectors(forward, camera.up).normalize();
+    lantern.position
       .copy(camera.position)
-      .addScaledVector(forward, 0.7)
-      .addScaledVector(right, 0.5)
-      .add(tmp.set(0, -0.45, 0));
-    // 180° turns the carry-bar horizontal toward the right edge; pushed far
-    // enough right that the bar leaves frame and only the lit body shows —
-    // reads as held by an unseen hand off-screen.
-    lanternModel.rotation.y = yaw + Math.PI;
+      .addScaledVector(forward, 0.4)
+      .addScaledVector(right, 0.3)
+      .add(tmp.set(0, -0.35, 0));
+    lanternOrb.position.copy(lantern.position);
   }
 }
 
