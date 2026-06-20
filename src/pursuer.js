@@ -44,6 +44,8 @@ export class Pursuer {
     // Optional skinned model (set later via setModel); null = procedural capsule.
     this._proc = body;
     this.mixer = null;
+    this._model = null; // loaded glTF root, if any
+    this._bob = 0;      // phase for the procedural float fallback
   }
 
   // Swap the procedural capsule for a loaded glTF model. Hides the capsule,
@@ -53,6 +55,7 @@ export class Pursuer {
     if (!root) return;
     this._proc.visible = false;
     this.group.add(root);
+    this._model = root;
     this.mixer = mixer;
     if (mixer && actions) {
       const walk = actions.walk || actions.Walk || actions.run || Object.values(actions)[0];
@@ -119,6 +122,14 @@ export class Pursuer {
     }
     this.group.position.set(this.pos.x, 0, this.pos.z);
     this.group.lookAt(playerPos.x, this.group.position.y, playerPos.z);
+
+    // Procedural "alive" motion when the loaded model has no skeletal clip: a
+    // slow vertical float + subtle sway so even a static mesh never reads frozen.
+    if (this._model && !this.mixer) {
+      this._bob += dt;
+      this._model.position.y = Math.sin(this._bob * 2.0) * 0.08;
+      this._model.rotation.z = Math.sin(this._bob * 1.3) * 0.05;
+    }
 
     // Eyes pulse subtly so the figure feels alive in the dark.
     this._pulse += dt;
