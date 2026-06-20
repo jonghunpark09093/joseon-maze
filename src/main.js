@@ -148,7 +148,7 @@ function startGame() {
   if (dead) { location.reload(); return; }
   started = true;
   overlay.classList.add('hidden');
-  ghostAudio.init(); // must run inside a user gesture to satisfy autoplay policy
+  if (audioOn) ghostAudio.init(); // user gesture → satisfies autoplay policy
   canvas.requestPointerLock?.();
 }
 overlay.addEventListener('click', startGame);
@@ -178,6 +178,16 @@ document.addEventListener('pointerlockchange', () => {
 const keys = {};
 document.addEventListener('keydown', (e) => (keys[e.code] = true));
 document.addEventListener('keyup', (e) => (keys[e.code] = false));
+
+// M toggles the procedural ghost voice (off by default). The keydown itself is
+// the user gesture that lets the AudioContext start.
+document.addEventListener('keydown', (e) => {
+  if (e.code !== 'KeyM') return;
+  audioOn = !audioOn;
+  if (audioOn) ghostAudio.init();
+  else ghostAudio.silence();
+  hud.dataset.audio = audioOn ? 'on' : 'off';
+});
 
 function updateLook(dt) {
   const rate = 1.8 * dt;
@@ -241,8 +251,11 @@ loadModel(modelUrl('pursuer.glb')).then((m) => m && pursuer.setModel(m));
 const tiger = new Tiger(maze, scene);
 loadModel(modelUrl('tiger.glb')).then((m) => m && tiger.setModel(m));
 
-// Procedural horror audio (see src/audio.js). Started on the first user gesture.
+// Procedural horror audio (see src/audio.js). Off by default — toggle with the
+// M key (it needs a user gesture to start anyway). Still a work in progress, so
+// we don't force it on every player yet.
 const ghostAudio = new GhostAudio();
+let audioOn = false;
 
 function gameOver() {
   if (dead || won) return;
@@ -343,8 +356,10 @@ function animate() {
   if (started && !won && !dead) {
     if (pursuer.update(dt, camera.position)) gameOver();
     if (tiger.update(dt, camera.position)) gameOver();
-    if (pursuer.justWoke) ghostAudio.scream();
-    ghostAudio.setProximity(pursuer.distanceTo(camera.position), pursuer.state === 'chase');
+    if (audioOn) {
+      if (pursuer.justWoke) ghostAudio.scream();
+      ghostAudio.setProximity(pursuer.distanceTo(camera.position), pursuer.state === 'chase');
+    }
   }
 
   ddgi.setLantern(lantern.position, lantern.intensity);
