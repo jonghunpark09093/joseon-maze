@@ -30,8 +30,9 @@ export class Pursuer {
     this.group.add(eyeL, eyeR);
     this.eyes = [eyeL, eyeR];
 
-    // Spawn deep in the maze, near (but not on) the exit corner.
-    const s = maze.cellToWorld(maze.exitCell.gx - 2, maze.exitCell.gz - 2);
+    // Spawn deep in the maze, a few steps from the (now random) exit.
+    const sp = maze.pursuerSpawn();
+    const s = maze.cellToWorld(sp.gx, sp.gz);
     this.pos = new THREE.Vector3(s.x, 0, s.z);
     this.group.position.copy(this.pos);
     scene.add(this.group);
@@ -39,6 +40,24 @@ export class Pursuer {
     this.path = [];
     this.repathTimer = 0;
     this._pulse = 0;
+
+    // Optional skinned model (set later via setModel); null = procedural capsule.
+    this._proc = body;
+    this.mixer = null;
+  }
+
+  // Swap the procedural capsule for a loaded glTF model. Hides the capsule,
+  // parents the model under the same group, and starts its first/named walk
+  // clip if the GLB ships animations.
+  setModel({ root, mixer, actions }) {
+    if (!root) return;
+    this._proc.visible = false;
+    this.group.add(root);
+    this.mixer = mixer;
+    if (mixer && actions) {
+      const walk = actions.walk || actions.Walk || actions.run || Object.values(actions)[0];
+      walk?.reset().play();
+    }
   }
 
   _key(x, z) { return z * this.maze.gw + x; }
@@ -76,6 +95,7 @@ export class Pursuer {
 
   // Advance the pursuer. Returns true on the frame it catches the player.
   update(dt, playerPos) {
+    if (this.mixer) this.mixer.update(dt);
     this.repathTimer -= dt;
     if (this.repathTimer <= 0) {
       this.repathTimer = 0.5;

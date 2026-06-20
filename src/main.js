@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { Maze } from './maze.js';
 import { DDGI } from './ddgi.js';
 import { Pursuer } from './pursuer.js';
+import { loadModel, modelUrl } from './models.js';
 
 const EYE_HEIGHT = 1.6;
 const PLAYER_RADIUS = 0.45;
@@ -63,12 +64,23 @@ lantern.shadow.camera.far = 18;
 lantern.shadow.bias = -0.0015;
 scene.add(lantern);
 
-// A small glowing orb so the lantern reads as a held object.
+// A small glowing orb so the lantern reads as a held object. Replaced by a
+// Joseon lantern (등롱) GLB if one is present in public/models/.
 const lanternOrb = new THREE.Mesh(
   new THREE.SphereGeometry(0.08, 12, 12),
   new THREE.MeshBasicMaterial({ color: 0xffcc77 })
 );
 scene.add(lanternOrb);
+
+// Optional art assets. Missing files resolve to null → procedural visuals stay.
+let lanternModel = null;
+loadModel(modelUrl('lantern.glb')).then((m) => {
+  if (!m) return;
+  lanternModel = m.root;
+  lanternModel.scale.setScalar(0.4);
+  lanternOrb.visible = false;
+  scene.add(lanternModel);
+});
 
 // --- Controls -------------------------------------------------------------
 // Custom first-person look so the game does NOT depend on the Pointer Lock
@@ -177,6 +189,7 @@ scene.add(exitLight);
 
 // --- Pursuer (the thing in the dark) --------------------------------------
 const pursuer = new Pursuer(maze, scene);
+loadModel(modelUrl('pursuer.glb')).then((m) => m && pursuer.setModel(m));
 
 function gameOver() {
   if (dead || won) return;
@@ -219,6 +232,10 @@ function updateLantern(dt) {
     .addScaledVector(right, 0.3)
     .add(tmp.set(0, -0.35, 0));
   lanternOrb.position.copy(lantern.position);
+  if (lanternModel) {
+    lanternModel.position.copy(lantern.position);
+    lanternModel.rotation.y = yaw;
+  }
 }
 
 // Dev-only debug handle for inspecting the scene from the console.

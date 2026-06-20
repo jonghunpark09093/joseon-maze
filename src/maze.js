@@ -19,10 +19,65 @@ export class Maze {
     this.worldW = this.gw * cellSize;
     this.worldD = this.gh * cellSize;
 
-    // Entrance: top-left passage cell. Exit: bottom-right passage cell.
+    // Entrance: fixed top-left passage cell. Exit: the floor cell *farthest*
+    // from the entrance (BFS), so every random maze still guarantees a long
+    // route to the goal instead of a fixed corner.
     this.startCell = { gx: 1, gz: 1 };
-    this.exitCell = { gx: this.gw - 2, gz: this.gh - 2 };
-    this.grid[this.exitCell.gz][this.exitCell.gx] = 0;
+    this.exitCell = this._farthestFrom(this.startCell);
+  }
+
+  // BFS distance map (in cells) from a floor cell; -1 = wall/unreachable.
+  _bfsDistances(start) {
+    const dist = Array.from({ length: this.gh }, () =>
+      new Int32Array(this.gw).fill(-1)
+    );
+    dist[start.gz][start.gx] = 0;
+    const q = [start];
+    const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+    let head = 0;
+    while (head < q.length) {
+      const c = q[head++];
+      const d = dist[c.gz][c.gx];
+      for (const [dx, dz] of dirs) {
+        const nx = c.gx + dx;
+        const nz = c.gz + dz;
+        if (this.isWallCell(nx, nz) || dist[nz][nx] !== -1) continue;
+        dist[nz][nx] = d + 1;
+        q.push({ gx: nx, gz: nz });
+      }
+    }
+    return dist;
+  }
+
+  // The reachable floor cell with the greatest BFS distance from `start`.
+  _farthestFrom(start) {
+    const dist = this._bfsDistances(start);
+    let best = start;
+    let bestD = -1;
+    for (let gz = 0; gz < this.gh; gz++) {
+      for (let gx = 0; gx < this.gw; gx++) {
+        if (dist[gz][gx] > bestD) {
+          bestD = dist[gz][gx];
+          best = { gx, gz };
+        }
+      }
+    }
+    return best;
+  }
+
+  // A floor cell a few steps from the exit — the pursuer lurks deep in the
+  // maze, near the goal the player is heading toward.
+  pursuerSpawn() {
+    const dist = this._bfsDistances(this.exitCell);
+    const candidates = [];
+    for (let gz = 0; gz < this.gh; gz++) {
+      for (let gx = 0; gx < this.gw; gx++) {
+        const d = dist[gz][gx];
+        if (d >= 2 && d <= 5) candidates.push({ gx, gz });
+      }
+    }
+    if (!candidates.length) return { ...this.exitCell };
+    return candidates[(Math.random() * candidates.length) | 0];
   }
 
   _generate() {
