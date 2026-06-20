@@ -3,6 +3,7 @@ import { Maze } from './maze.js';
 import { DDGI } from './ddgi.js';
 import { Pursuer } from './pursuer.js';
 import { Tiger } from './tiger.js';
+import { GhostAudio } from './audio.js';
 import { loadModel, modelUrl } from './models.js';
 
 const EYE_HEIGHT = 1.6;
@@ -147,6 +148,7 @@ function startGame() {
   if (dead) { location.reload(); return; }
   started = true;
   overlay.classList.add('hidden');
+  ghostAudio.init(); // must run inside a user gesture to satisfy autoplay policy
   canvas.requestPointerLock?.();
 }
 overlay.addEventListener('click', startGame);
@@ -238,6 +240,9 @@ loadModel(modelUrl('pursuer.glb')).then((m) => m && pursuer.setModel(m));
 // A second predator: roams and pounces on line of sight (see src/tiger.js).
 const tiger = new Tiger(maze, scene);
 loadModel(modelUrl('tiger.glb')).then((m) => m && tiger.setModel(m));
+
+// Procedural horror audio (see src/audio.js). Started on the first user gesture.
+const ghostAudio = new GhostAudio();
 
 function gameOver() {
   if (dead || won) return;
@@ -338,6 +343,8 @@ function animate() {
   if (started && !won && !dead) {
     if (pursuer.update(dt, camera.position)) gameOver();
     if (tiger.update(dt, camera.position)) gameOver();
+    if (pursuer.justWoke) ghostAudio.scream();
+    ghostAudio.setProximity(pursuer.distanceTo(camera.position), pursuer.state === 'chase');
   }
 
   ddgi.setLantern(lantern.position, lantern.intensity);
@@ -352,7 +359,9 @@ function animate() {
     const d = pursuer.distanceTo(camera.position);
     const td = tiger.distanceTo(camera.position);
     let danger = '';
-    if (tiger.state === 'pounce' && td < 14) {
+    if (pursuer.state === 'chase') {
+      danger = ' · <span style="color:#ff2030">귀신이 쫓아온다 — 달려!</span>';
+    } else if (tiger.state === 'pounce' && td < 14) {
       danger = ' · <span style="color:#ff7a1a">으르렁… 호랑이가 노려본다</span>';
     } else if (d < 6) {
       danger = ' · <span style="color:#ff4040">바로 뒤에 무언가 있다…</span>';
