@@ -2,7 +2,7 @@
 
 > Three.js 기반 1인칭 공포 미로 게임. 핵심 그래픽스 기술로 **DDGI(Dynamic Diffuse Global Illumination)** 를 직접 구현한다.
 >
-> **플레이 링크:** _(배포 후 기입)_ · **소스:** _(git 링크 기입)_
+> **플레이 링크:** https://jonghunpark09093.github.io/joseon-maze/ · **소스:** https://github.com/jonghunpark09093/joseon-maze
 
 > 본 리포트의 모든 그림은 **이 게임에서 직접 캡쳐한 이미지**(`captures/`)다. 외부/예시 이미지는 사용하지 않았다.
 
@@ -118,5 +118,5 @@ npm run build    # 정적 빌드 → dist/
 npm run preview  # 빌드 결과 미리보기
 ```
 
-- **배포:** _(GitHub Pages — 링크 기입 예정)_
+- **배포:** GitHub Pages — https://jonghunpark09093.github.io/joseon-maze/ (main 푸시 시 GitHub Actions가 자동 빌드·배포)
 - `vite.config.js`의 `base: './'` 로 상대 경로 빌드 → 임의의 정적 호스트/서브경로에서 동작.
