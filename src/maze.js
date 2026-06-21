@@ -240,14 +240,32 @@ export class Maze {
     floor.receiveShadow = true;
     group.add(floor);
 
+    // Ceiling as per-cell tiles so we can leave a 3×3 OPENING over the exit —
+    // the player emerges from the dark corridor to see the night sky above the
+    // goal (sky background shows through the hole). Built as an InstancedMesh.
     const ceilMat = new THREE.MeshStandardMaterial({
       color: 0x171210,
       roughness: 1.0,
       metalness: 0.0,
     });
-    const ceil = new THREE.Mesh(floorGeo, ceilMat);
-    ceil.rotation.x = Math.PI / 2;
-    ceil.position.y = this.wallHeight;
+    const ceilGeo = new THREE.PlaneGeometry(this.cellSize, this.cellSize);
+    ceilGeo.rotateX(Math.PI / 2); // face downward
+    const SKY_OPEN = 1; // Chebyshev radius of the opening (1 = 3×3 cells)
+    const ceilCells = [];
+    for (let gz = 0; gz < this.gh; gz++) {
+      for (let gx = 0; gx < this.gw; gx++) {
+        const cheb = Math.max(Math.abs(gx - this.exitCell.gx), Math.abs(gz - this.exitCell.gz));
+        if (cheb > SKY_OPEN) ceilCells.push({ gx, gz });
+      }
+    }
+    const ceil = new THREE.InstancedMesh(ceilGeo, ceilMat, ceilCells.length);
+    const cm = new THREE.Matrix4();
+    ceilCells.forEach((c, i) => {
+      const w = this.cellToWorld(c.gx, c.gz);
+      cm.makeTranslation(w.x, this.wallHeight, w.z);
+      ceil.setMatrixAt(i, cm);
+    });
+    ceil.instanceMatrix.needsUpdate = true;
     group.add(ceil);
 
     // Walls as a single InstancedMesh of boxes for performance.

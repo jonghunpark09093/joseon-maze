@@ -19,9 +19,11 @@
 
 ![미로 평면도](captures/maze_topdown.png)
 
-**목표 — 출구 나무 대문:** 미로의 가장 깊은 셀(시작점에서 BFS 최장거리)에 조선풍 나무 대문(기둥·인방·판자문, 절차 생성)을 세워 목적지를 명확히 했다.
+**목표 — 출구 나무 대문 & 밤하늘:** 미로의 가장 깊은 셀(시작점에서 BFS 최장거리)에 조선풍 나무 대문(기둥·인방·판자문, 절차 생성)을 세우고, **그 위 천장을 3×3 크기로 뚫어 밤하늘 HDRI(equirectangular, §6)를 배경으로 노출**했다. 어둠 속 미로를 빠져나오면 별이 가득한 밤하늘이 드러난다 — *조선 야행* 테마의 시각적 보상.
 
-![출구 대문](captures/exit_gate.png)
+| 출구 나무 대문 | 천장 너머 밤하늘 |
+|---|---|
+| ![출구 대문](captures/exit_gate.png) | ![밤하늘](captures/exit_sky.png) |
 
 ---
 
@@ -166,6 +168,7 @@ npm run preview  # 빌드 결과 미리보기
 | 호랑이 모델·애니메이션 | "Running Tiger" by Amil (francescolima74) — https://skfb.ly/6SuVt | **CC BY 4.0** (출처표시) |
 | 바닥 텍스처 (Forest Ground 01) | [Poly Haven](https://polyhaven.com/a/forrest_ground_01) | CC0 |
 | 벽 텍스처 (Wood Cabinet Worn Long) | [Poly Haven](https://polyhaven.com/a/wood_cabinet_worn_long) | CC0 |
+| 밤하늘 HDRI (Satara Night) | [Poly Haven](https://polyhaven.com/a/satara_night_no_lamps) | CC0 |
 | 귀신 음성(울음·웃음) | 자체 Web Audio 절차합성 (`src/audio.js`) | 자작 (외부 샘플 0) |
 
 - CC0는 출처표시 의무가 없으나 학술적 정직성을 위해 명기한다.

@@ -4,6 +4,7 @@ import { DDGI } from './ddgi.js';
 import { Pursuer } from './pursuer.js';
 import { Tiger } from './tiger.js';
 import { GhostAudio } from './audio.js';
+import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader.js';
 import { loadModel, modelUrl } from './models.js';
 
 const EYE_HEIGHT = 1.6;
@@ -32,6 +33,19 @@ app.appendChild(renderer.domElement);
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x05060a);
 scene.fog = new THREE.FogExp2(0x05060a, 0.085);
+
+// Night-sky HDRI shown through the opening in the ceiling above the exit, so
+// escaping the dark maze reveals a starfield. (Satara Night, Poly Haven CC0.)
+// Only set as background (not environment) so it doesn't brighten the dark
+// corridors — the lantern stays the only meaningful light inside.
+new RGBELoader().load(`${import.meta.env.BASE_URL}sky/night.hdr`, (tex) => {
+  tex.mapping = THREE.EquirectangularReflectionMapping;
+  scene.background = tex;
+  // This "no lamps" night sky is very dark; lift it so the stars actually read
+  // through the small ceiling opening. (Only the opening shows it, so this does
+  // not brighten the corridors.)
+  scene.backgroundIntensity = 12;
+});
 
 const camera = new THREE.PerspectiveCamera(
   72,
