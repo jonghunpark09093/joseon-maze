@@ -195,6 +195,18 @@ export class Pursuer {
         this.pos.x += (dx / d) * speed * dt;
         this.pos.z += (dz / d) * speed * dt;
       }
+    } else if (this.state === 'chase') {
+      // Path exhausted = we're in the player's cell. BFS only reaches the cell
+      // *centre*, so home straight onto the player's actual position to close
+      // the last gap and actually touch them (otherwise it stalls a body-width
+      // away and never triggers the catch).
+      const dx = playerPos.x - this.pos.x;
+      const dz = playerPos.z - this.pos.z;
+      const d = Math.hypot(dx, dz);
+      if (d > 0.001 && d < this.maze.cellSize) {
+        this.pos.x += (dx / d) * speed * dt;
+        this.pos.z += (dz / d) * speed * dt;
+      }
     }
     this.group.position.set(this.pos.x, 0, this.pos.z);
     this.group.lookAt(playerPos.x, this.group.position.y, playerPos.z);
