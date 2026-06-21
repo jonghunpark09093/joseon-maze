@@ -39,9 +39,9 @@
 ### 2.2 셰이딩 & 라이팅 (Phong / Blinn-Phong, 광원 타입)
 - `MeshStandardMaterial`(물리 기반) + 점광원(등불, `PointLight`)으로 **확산광/반사광/거리 감쇠** 표현 → 폼 반사 모델·Attenuation 대응.
 - 광원 타입: 등불=Point Light, 달빛=Directional Light, 배경 채움광=Ambient Light → Light Source Types 대응.
-- 아래 인게임 화면에서 등불을 중심으로 한 거리 감쇠(가까운 벽은 밝고 멀수록 어두워짐)를 볼 수 있다.
+- 아래 텍스처 적용 복도에서 등불을 중심으로 한 거리 감쇠(가까운 벽·바닥은 밝고 멀수록 어두워짐)를 볼 수 있다.
 
-![인게임 1인칭 — 등불 거리 감쇠](captures/ddgi_on.png)
+![인게임 1인칭 — 등불 거리 감쇠](captures/corridor_tex.png)
 
 ### 2.3 텍스처 & UV 매핑
 - **벽·바닥 PBR 텍스처:** 벽(풍화 목재 판벽)과 바닥(산속 흙·낙엽)에 **diffuse + normal(법선) + roughness + AO** 4개 맵을 `MeshStandardMaterial`에 매핑하고, `RepeatWrapping`으로 셀 단위 UV 타일링했다(Poly Haven CC0, §6). 강의의 **텍스처 매핑 / 법선 매핑 / UV** 단계에 직접 대응한다.
@@ -75,8 +75,6 @@
 | 추격자 — 처녀귀신 | 두 번째 포식자 — 호랑이 |
 |---|---|
 | ![귀신](captures/pursuer_lit.png) | ![호랑이](captures/pursuer_tiger.png) |
-
-![추격자 — 복도 끝의 빨간 눈](captures/pursuer_lit.png)
 
 ---
 
