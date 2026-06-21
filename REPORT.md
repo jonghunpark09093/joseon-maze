@@ -136,9 +136,9 @@
 ### 4.3 옥타헤드럴 irradiance/depth atlas (MRT)
 - 한 번의 gather 패스에서 **MRT 2채널** 로 (1) irradiance와 (2) 거리·거리² 모멘트를 동시에 출력. 코사인 가중 누적 + 시간적(temporal) 블렌딩으로 노이즈 억제.
 
-**아틀라스에 시간적 블렌딩으로 수렴된 간접광:** 등불 이동 후 프로브가 재수렴한 모습.
+**아틀라스에 수렴된 간접광(단색 벽으로 효과 분리):** gather 패스가 적분해 아틀라스에 저장한 irradiance가 공간을 따뜻하게 채운다.
 
-![아틀라스로 수렴된 옥타헤드럴 간접광](captures/dyn_late.png)
+![아틀라스로 수렴된 옥타헤드럴 간접광](captures/ddgi_atlas.png)
 
 ### 4.4 Chebyshev 가시성 테스트 (빛 샘 방지) — irradiance probe와 DDGI를 가르는 지점
 - 셰이딩 점이 프로브의 평균 거리보다 멀면 "벽 뒤"로 보고 variance shadow(체비셰프 부등식)로 기여를 차감 → 벽 너머 누수 차단.
