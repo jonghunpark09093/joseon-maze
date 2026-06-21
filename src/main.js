@@ -3,7 +3,6 @@ import { Maze } from './maze.js';
 import { DDGI } from './ddgi.js';
 import { Pursuer } from './pursuer.js';
 import { Tiger } from './tiger.js';
-import { GhostAudio } from './audio.js';
 import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader.js';
 import { loadModel, modelUrl } from './models.js';
 
@@ -175,7 +174,7 @@ function startGame() {
   if (dead) { location.reload(); return; }
   started = true;
   overlay.classList.add('hidden');
-  if (audioOn) ghostAudio.init(); // user gesture → satisfies autoplay policy
+  bgAudio.play().catch(() => {}); // user gesture → satisfies autoplay policy
   canvas.requestPointerLock?.();
 }
 overlay.addEventListener('click', startGame);
@@ -213,18 +212,11 @@ const keys = {};
 document.addEventListener('keydown', (e) => (keys[e.code] = true));
 document.addEventListener('keyup', (e) => (keys[e.code] = false));
 
-// M toggles the procedural ghost voice (off by default). The keydown itself is
-// the user gesture that lets the AudioContext start.
+// M mutes / unmutes the background horror track.
 document.addEventListener('keydown', (e) => {
   if (e.code !== 'KeyM') return;
-  audioOn = !audioOn;
-  if (audioOn) {
-    ghostAudio.init();
-    ghostAudio.demo(); // immediate audible preview (cry → sudden laugh)
-  } else {
-    ghostAudio.silence();
-  }
-  hud.dataset.audio = audioOn ? 'on' : 'off';
+  bgAudio.muted = !bgAudio.muted;
+  hud.dataset.audio = bgAudio.muted ? 'off' : 'on';
 });
 
 function updateLook(dt) {
@@ -353,11 +345,10 @@ loadModel(modelUrl('tiger.glb')).then((m) => {
   tiger.setModel(m);
 });
 
-// Procedural horror audio (see src/audio.js). Off by default — toggle with the
-// M key (it needs a user gesture to start anyway). Still a work in progress, so
-// we don't force it on every player yet.
-const ghostAudio = new GhostAudio();
-let audioOn = false;
+// Looping background horror track (played from the first user gesture). M mutes.
+const bgAudio = new Audio(`${import.meta.env.BASE_URL}audio/horror.mp3`);
+bgAudio.loop = true;
+bgAudio.volume = 0.55;
 
 // A blood-red flash when caught — a cheap but effective jump scare. The frozen
 // scene (predator lunging at the player) stays behind it for the instant before
@@ -381,7 +372,6 @@ function gameOver() {
   started = false;
   document.exitPointerLock?.();
   jumpScare();
-  if (audioOn) ghostAudio.scream();
   // Let the flash play before the game-over overlay covers the screen.
   setTimeout(() => {
     overlay.classList.remove('hidden');
@@ -481,10 +471,6 @@ function animate() {
   if (started && !won && !dead) {
     if (pursuer.update(dt, camera.position)) gameOver();
     if (tiger.update(dt, camera.position)) gameOver();
-    if (audioOn) {
-      if (pursuer.justWoke) ghostAudio.scream();
-      ghostAudio.setProximity(pursuer.distanceTo(camera.position), pursuer.state === 'chase');
-    }
   }
 
   ddgi.setLantern(lantern.position, lantern.intensity);
