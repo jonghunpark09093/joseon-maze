@@ -193,9 +193,33 @@ export class Maze {
 
     // Floor + ceiling planes spanning the whole grid.
     const floorGeo = new THREE.PlaneGeometry(this.worldW, this.worldD);
+    // aoMap reads the 2nd UV set (`uv1` in modern three); the plane only ships
+    // `uv`, so mirror it.
+    floorGeo.setAttribute('uv1', floorGeo.getAttribute('uv'));
+
+    // PBR floor (Poly Haven forest-ground set). The diffuse is multiplied by a
+    // dark, desaturated tint so the lush daylight grass reads as dim mountain
+    // earth under the lantern instead of a bright meadow.
+    const TILE = 4; // world units per texture repeat (≈ one maze cell)
+    const repX = this.worldW / TILE;
+    const repZ = this.worldD / TILE;
+    const tx = (name, srgb = false) => {
+      const t = new THREE.TextureLoader().load(
+        `${import.meta.env.BASE_URL}textures/floor/${name}`
+      );
+      t.wrapS = t.wrapT = THREE.RepeatWrapping;
+      t.repeat.set(repX, repZ);
+      t.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace;
+      t.anisotropy = 8;
+      return t;
+    };
     const floorMat = new THREE.MeshStandardMaterial({
-      color: 0x2a2118,
-      roughness: 0.95,
+      color: 0x6b6354,          // dark warm tint over the green albedo
+      map: tx('diff.jpg', true),
+      normalMap: tx('nor_gl.jpg'),
+      roughnessMap: tx('rough.jpg'),
+      aoMap: tx('ao.jpg'),
+      roughness: 1.0,
       metalness: 0.0,
     });
     const floor = new THREE.Mesh(floorGeo, floorMat);
