@@ -44,7 +44,7 @@ new RGBELoader().load(`${import.meta.env.BASE_URL}sky/night.hdr`, (tex) => {
   // This "no lamps" night sky is very dark; lift it so the stars actually read
   // through the small ceiling opening. (Only the opening shows it, so this does
   // not brighten the corridors.)
-  scene.backgroundIntensity = 12;
+  scene.backgroundIntensity = 3;
 });
 
 const camera = new THREE.PerspectiveCamera(
@@ -321,10 +321,13 @@ scene.add(exitLight);
   const pR = new THREE.Mesh(postGeo, post); pR.position.set(W / 2 - 0.25, H / 2, 0);
   const lintel = new THREE.Mesh(new THREE.BoxGeometry(W, 0.5, 0.5), post);
   lintel.position.set(0, H - 0.25, 0);
-  const door = new THREE.Mesh(new THREE.BoxGeometry(W - 0.7, H - 0.6, 0.16), plank);
-  door.position.set(0, (H - 0.6) / 2, 0.02);
-  for (const m of [pL, pR, lintel, door]) { m.castShadow = true; m.receiveShadow = true; }
-  gate.add(pL, pR, lintel, door);
+  // A short lintel skirt up top + two narrow door leaves swung open against the
+  // posts, so the gateway is open: you see the night sky through it.
+  const leafGeo = new THREE.BoxGeometry(0.5, H - 0.7, 0.12);
+  const leafL = new THREE.Mesh(leafGeo, plank); leafL.position.set(-W / 2 + 0.55, (H - 0.7) / 2, 0.25);
+  const leafR = new THREE.Mesh(leafGeo, plank); leafR.position.set(W / 2 - 0.55, (H - 0.7) / 2, 0.25);
+  for (const m of [pL, pR, lintel, leafL, leafR]) { m.castShadow = true; m.receiveShadow = true; }
+  gate.add(pL, pR, lintel, leafL, leafR);
 
   gate.position.set(exitWorld.x, 0, exitWorld.z);
   // The default gate faces ±Z; if the cell's opening runs along X, turn it 90°.

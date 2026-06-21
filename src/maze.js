@@ -240,9 +240,32 @@ export class Maze {
     floor.receiveShadow = true;
     group.add(floor);
 
-    // Ceiling as per-cell tiles so we can leave a 3×3 OPENING over the exit —
-    // the player emerges from the dark corridor to see the night sky above the
-    // goal (sky background shows through the hole). Built as an InstancedMesh.
+    // Carve an opening from the exit OUT to the maze boundary — opposite the
+    // entrance corridor — so the night sky shows *through the gate*. Ceiling and
+    // wall geometry are removed along this short trench (floor stays), so the
+    // gate frames a moonlit path out to the open night.
+    const exitOpen = (() => {
+      for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        if (!this.isWallCell(this.exitCell.gx + dx, this.exitCell.gz + dz)) return [dx, dz];
+      }
+      return [0, 1];
+    })();
+    const outDir = [-exitOpen[0], -exitOpen[1]];
+    this.exitOutDir = outDir;
+    const skyCells = new Set();
+    const key = (x, z) => z * this.gw + x;
+    skyCells.add(key(this.exitCell.gx, this.exitCell.gz));
+    {
+      let x = this.exitCell.gx, z = this.exitCell.gz;
+      while (true) {
+        x += outDir[0]; z += outDir[1];
+        if (x < 0 || x >= this.gw || z < 0 || z >= this.gh) break; // reached boundary → sky beyond
+        skyCells.add(key(x, z));
+      }
+    }
+    this.skyCells = skyCells;
+
+    // Ceiling as per-cell tiles (InstancedMesh), skipping the sky trench.
     const ceilMat = new THREE.MeshStandardMaterial({
       color: 0x171210,
       roughness: 1.0,
@@ -250,12 +273,10 @@ export class Maze {
     });
     const ceilGeo = new THREE.PlaneGeometry(this.cellSize, this.cellSize);
     ceilGeo.rotateX(Math.PI / 2); // face downward
-    const SKY_OPEN = 1; // Chebyshev radius of the opening (1 = 3×3 cells)
     const ceilCells = [];
     for (let gz = 0; gz < this.gh; gz++) {
       for (let gx = 0; gx < this.gw; gx++) {
-        const cheb = Math.max(Math.abs(gx - this.exitCell.gx), Math.abs(gz - this.exitCell.gz));
-        if (cheb > SKY_OPEN) ceilCells.push({ gx, gz });
+        if (!skyCells.has(key(gx, gz))) ceilCells.push({ gx, gz });
       }
     }
     const ceil = new THREE.InstancedMesh(ceilGeo, ceilMat, ceilCells.length);
@@ -268,11 +289,13 @@ export class Maze {
     ceil.instanceMatrix.needsUpdate = true;
     group.add(ceil);
 
-    // Walls as a single InstancedMesh of boxes for performance.
+    // Walls as a single InstancedMesh of boxes for performance. The sky-trench
+    // cells are skipped (rendered open) while staying walls in the grid, so the
+    // player can't actually walk out — they win at the gate.
     const wallCells = [];
     for (let gz = 0; gz < this.gh; gz++) {
       for (let gx = 0; gx < this.gw; gx++) {
-        if (this.grid[gz][gx] === 1) wallCells.push({ gx, gz });
+        if (this.grid[gz][gx] === 1 && !skyCells.has(key(gx, gz))) wallCells.push({ gx, gz });
       }
     }
     const wallGeo = new THREE.BoxGeometry(this.cellSize, this.wallHeight, this.cellSize);
