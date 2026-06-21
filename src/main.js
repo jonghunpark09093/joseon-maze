@@ -272,8 +272,15 @@ const pursuer = new Pursuer(maze, scene);
 loadModel(modelUrl('pursuer.glb')).then((m) => m && pursuer.setModel(m));
 
 // A second predator: roams and pounces on line of sight (see src/tiger.js).
+// "Running Tiger" by Amil (francescolima74), CC-BY 4.0 (https://skfb.ly/6SuVt).
+// The asset is authored in centimetres (~2.4 m long), so scale it down to fit
+// the 4-unit maze corridors before handing it to the predator.
 const tiger = new Tiger(maze, scene);
-loadModel(modelUrl('tiger.glb')).then((m) => m && tiger.setModel(m));
+loadModel(modelUrl('tiger.glb')).then((m) => {
+  if (!m) return;
+  m.root.scale.setScalar(0.009); // ~0.5 × 1.1 × 2.2 world units
+  tiger.setModel(m);
+});
 
 // Procedural horror audio (see src/audio.js). Off by default — toggle with the
 // M key (it needs a user gesture to start anyway). Still a work in progress, so

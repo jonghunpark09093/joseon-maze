@@ -136,3 +136,21 @@ npm run preview  # 빌드 결과 미리보기
 
 - **배포:** GitHub Pages — https://jonghunpark09093.github.io/joseon-maze/ (main 푸시 시 GitHub Actions가 자동 빌드·배포)
 - `vite.config.js`의 `base: './'` 로 상대 경로 빌드 → 임의의 정적 호스트/서브경로에서 동작.
+
+---
+
+## 6. 사용 에셋 및 출처
+
+> 코드(미로 생성·DDGI·게임플레이·오디오)와 본 리포트의 모든 스크린샷은 직접 제작했다. 외부 에셋은 아래뿐이며 라이선스를 준수한다.
+
+| 에셋 | 출처 / 제작 | 라이선스 |
+|---|---|---|
+| 추격자(귀신) 모델·애니메이션 | Meshy AI 생성 | 생성물 |
+| 등불(등롱) 모델 | Meshy AI 생성 | 생성물 |
+| 호랑이 모델·애니메이션 | "Running Tiger" by Amil (francescolima74) — https://skfb.ly/6SuVt | **CC BY 4.0** (출처표시) |
+| 바닥 텍스처 (Forest Ground 01) | [Poly Haven](https://polyhaven.com/a/forrest_ground_01) | CC0 |
+| 벽 텍스처 (Wood Cabinet Worn Long) | [Poly Haven](https://polyhaven.com/a/wood_cabinet_worn_long) | CC0 |
+| 귀신 음성(울음·웃음) | 자체 Web Audio 절차합성 (`src/audio.js`) | 자작 (외부 샘플 0) |
+
+- CC0는 출처표시 의무가 없으나 학술적 정직성을 위해 명기한다.
+- 호랑이는 **CC BY 4.0** 이므로 위 출처표시가 라이선스 요건이다.
