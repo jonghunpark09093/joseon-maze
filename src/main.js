@@ -235,7 +235,7 @@ const lanternWorld = new THREE.Vector3();
 let stamina = 1;
 let exhausted = false;
 const STAMINA_DRAIN = 0.34;     // per second while sprinting
-const STAMINA_REGEN = 0.22;     // per second while recovering
+const STAMINA_REGEN = 0.11;     // per second while recovering (slow on purpose)
 const EXHAUST_RECOVER = 0.35;   // stamina needed to sprint again after exhaustion
 
 function move(dt) {
