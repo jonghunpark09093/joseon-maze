@@ -17,7 +17,10 @@ const hud = document.getElementById('hud');
 
 // --- Renderer -------------------------------------------------------------
 const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+// Cap pixel ratio at 1.5: the textured walls + DDGI gather are fill-rate bound,
+// and on a retina display rendering at 2x quadruples fragment work for little
+// visible gain. 1.5 noticeably smooths the frame rate.
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -57,7 +60,7 @@ viewFill.position.set(0.5, 0.1, 0.2);
 viewScene.add(viewFill);
 
 // Faint moonlight so geometry is barely readable when the lantern is away.
-const ambient = new THREE.AmbientLight(0x223044, 0.26);
+const ambient = new THREE.AmbientLight(0x223044, 0.34);
 scene.add(ambient);
 
 const moon = new THREE.DirectionalLight(0x4060a0, 0.12);
@@ -77,7 +80,7 @@ ddgi.patch(maze.materials.floor);
 ddgi.patch(maze.materials.ceiling);
 
 // --- Lantern (warm point light carried by the player) ---------------------
-const lantern = new THREE.PointLight(0xffaa55, 3.4, 22, 1.5);
+const lantern = new THREE.PointLight(0xffaa55, 4.8, 28, 1.5);
 lantern.castShadow = true;
 lantern.shadow.mapSize.set(1024, 1024);
 lantern.shadow.camera.near = 0.1;
@@ -307,7 +310,7 @@ let flickerSeed = 0;
 
 function updateLantern(dt) {
   flickerSeed += dt;
-  const flick = 3.4 + Math.sin(flickerSeed * 11) * 0.22 + Math.sin(flickerSeed * 23) * 0.12;
+  const flick = 4.8 + Math.sin(flickerSeed * 11) * 0.3 + Math.sin(flickerSeed * 23) * 0.16;
   lantern.intensity = flick;
 
   if (lanternModel) {

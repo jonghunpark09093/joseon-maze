@@ -210,7 +210,7 @@ export class Maze {
       t.wrapS = t.wrapT = THREE.RepeatWrapping;
       t.repeat.set(repX, repZ);
       t.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace;
-      t.anisotropy = 8;
+      t.anisotropy = 4;
       return t;
     };
     const floorMat = new THREE.MeshStandardMaterial({
@@ -259,7 +259,7 @@ export class Maze {
       // ~2m per tile, texels kept square to the box faces (4 × 3.2).
       t.repeat.set(this.cellSize / 2, this.wallHeight / 2 * 0.8);
       t.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace;
-      t.anisotropy = 8;
+      t.anisotropy = 4;
       return t;
     };
     const wallMat = new THREE.MeshStandardMaterial({
