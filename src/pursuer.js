@@ -13,7 +13,7 @@ export class Pursuer {
     catchRadius = 0.8,
     lurkSpeed = 3.4,
     chaseSpeed = 5.2,
-    senseRadius = 20,   // world units: within this (even through walls) it wakes
+    senseRadius = 17,   // world units: within this (even through walls) it wakes
     loseRadius = 30,    // must get beyond this to start being forgotten
     forgetTime = 4,     // seconds beyond loseRadius before it gives up
   } = {}) {

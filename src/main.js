@@ -234,7 +234,7 @@ const lanternWorld = new THREE.Vector3();
 // recovers past a threshold — so you can't escape the ghost by holding Shift.
 let stamina = 1;
 let exhausted = false;
-const STAMINA_DRAIN = 0.34;     // per second while sprinting
+const STAMINA_DRAIN = 0.17;     // per second while sprinting (≈5.9s of sprint)
 const STAMINA_REGEN = 0.11;     // per second while recovering (slow on purpose)
 const EXHAUST_RECOVER = 0.35;   // stamina needed to sprint again after exhaustion
 
@@ -300,7 +300,7 @@ loadModel(modelUrl('pursuer.glb')).then((m) => m && pursuer.setModel(m));
 const tiger = new Tiger(maze, scene);
 loadModel(modelUrl('tiger.glb')).then((m) => {
   if (!m) return;
-  m.root.scale.setScalar(0.009); // ~0.5 × 1.1 × 2.2 world units
+  m.root.scale.setScalar(0.018); // ~1.0 × 2.1 × 4.3 world units (a big cat)
   tiger.setModel(m);
 });
 
