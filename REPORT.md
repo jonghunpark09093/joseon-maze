@@ -4,8 +4,6 @@
 >
 > **플레이 링크:** https://jonghunpark09093.github.io/joseon-maze/ · **소스:** https://github.com/jonghunpark09093/joseon-maze
 
-> 본 리포트의 모든 그림은 **이 게임에서 직접 캡쳐한 이미지**(`captures/`)다. 외부/예시 이미지는 사용하지 않았다.
-
 ---
 
 ## 1. 게임 개요 (기획)
@@ -122,12 +120,41 @@
 ### 4.1 프로브 그리드 배치
 - 점유 격자 해상도에 맞춘 3D 프로브 격자(`gw × 3 × gh`). 각 프로브는 옥타헤드럴 타일로 irradiance와 depth-moment를 저장.
 
+미로 셀마다 프로브 기둥을 하나씩 두고, 높이로 3층을 쌓았다. `probeMin`/`probeSpacing`을 셀 크기에 맞춰서 프로브가 점유 격자 좌표에 정렬되게 했다.
+
+```js
+// src/ddgi.js (constructor)
+const ny = 3;
+this.counts       = new THREE.Vector3(maze.gw, ny, maze.gh);   // 25 × 3 × 25 = 1875개
+this.probeMin     = new THREE.Vector3(-worldW/2 + cellSize/2, 0.7, -worldD/2 + cellSize/2);
+this.probeSpacing = new THREE.Vector3(maze.cellSize, ySpacing, maze.cellSize);
+```
+
 **실제 프로브 격자(인게임 시각화):** DDGI 프로브 위치(`gw × 3 × gh` = 25×3×25)에 마커를 띄워 본 모습. 점유 격자에 맞춰 규칙적으로 배치된다.
 
 ![DDGI 프로브 격자 — 25×3×25 배치 시각화](captures/capture_probe.png)
 
 ### 4.2 SDF 레이마칭으로 프로브 광선 추적 (하드웨어 RT 없이 WebGL2)
 - 미로는 축 정렬 격자이므로 점유 격자를 **SDF** 로 보고 프래그먼트 셰이더에서 DDA 레이마칭. 하드웨어 레이트레이싱 없이 프로브마다 다방향 광선을 추적해 등불 직접광 + 벽 반사 albedo를 적분.
+
+삼각형 교차검사 대신, 광선이 들어가는 다음 격자 칸으로 한 칸씩 전진한다(DDA). 벽 칸에 닿으면 그 칸의 법선과 albedo를 반환한다.
+
+```glsl
+// src/ddgi.js — traceMaze()
+for(int i=0; i<192; i++){
+  if(tMax.x < tMax.y){ tHit=tMax.x; cell.x+=stp.x; tMax.x+=tDelta.x; nrm=vec3(-stp.x,0,0); }
+  else               { tHit=tMax.y; cell.y+=stp.y; tMax.y+=tDelta.y; nrm=vec3(0,0,-stp.y); }
+  if(occ(cell)){ h.t=tHit; h.n=nrm; h.alb=uAlbWall; return h; } // 벽에 닿음
+}
+```
+
+닿은 지점에서는 등불 직접광(거리 감쇠 × N·L)에 표면 색(albedo)을 곱해 그 방향에서 들어오는 빛을 구한다. 방향은 피보나치 구로 골고루 샘플링해 프로브마다 반복한다.
+
+```glsl
+// src/ddgi.js — shadeHit()
+vec3 direct = uLanternColor * uLanternInt * falloff * ndl; // 등불 직접광
+return h.alb * (direct + uAmbient);                        // × 벽 색(반사)
+```
 
 **레이마칭으로 적분된 간접광 결과(인게임):** 직접광이 닿지 않는 영역까지 벽 반사로 붉게 물든다.
 
@@ -136,12 +163,43 @@
 ### 4.3 옥타헤드럴 irradiance/depth atlas (MRT)
 - 한 번의 gather 패스에서 **MRT 2채널** 로 (1) irradiance와 (2) 거리·거리² 모멘트를 동시에 출력. 코사인 가중 누적 + 시간적(temporal) 블렌딩으로 노이즈 억제.
 
+방향 구를 옥타헤드럴 타일로 펼쳐 프로브별로 atlas 텍스처에 저장한다. 각 텍셀(한 방향 `dir`)에서 4.2가 쏜 광선들을 방향 정렬 정도(코사인)로 누적한다. 출력은 `layout(location ...)` 두 개로, 빛(irradiance)과 거리 모멘트를 한 패스에 같이 쓴다(MRT). 마지막에 이전 프레임 결과와 `mix` 해서 시간적으로 누적(노이즈 감소). 거리 모멘트는 4.4 가시성 테스트에 쓰인다.
+
+```glsl
+// src/ddgi.js — gather 셰이더
+layout(location = 0) out vec4 oIrr;    // irradiance
+layout(location = 1) out vec4 oDepth;  // 거리·거리² 모멘트  (MRT, 한 패스에 둘 다)
+for(int k=0; k<uK; k++){
+  float c = max(dot(dir, rdir), 0.0);  // 이 텍셀 방향과 정렬된 광선만
+  acc += ray.rgb * c; wsum += c;
+}
+oIrr   = vec4(mix(prevI, irr, uBlend), 1.0);          // 이전 프레임과 섞어 노이즈 억제
+oDepth = vec4(mix(prevD, mom, uBlend), 0.0, 1.0);
+```
+
 **아틀라스에 수렴된 간접광(단색 벽으로 효과 분리):** gather 패스가 적분해 아틀라스에 저장한 irradiance가 공간을 따뜻하게 채운다.
 
 ![아틀라스로 수렴된 옥타헤드럴 간접광](captures/ddgi_atlas.png)
 
 ### 4.4 Chebyshev 가시성 테스트 (빛 샘 방지) — irradiance probe와 DDGI를 가르는 지점
 - 셰이딩 점이 프로브의 평균 거리보다 멀면 "벽 뒤"로 보고 variance shadow(체비셰프 부등식)로 기여를 차감 → 벽 너머 누수 차단.
+
+벽을 칠하는 셰이더(패치)에서 8개 프로브를 트라이리니어 보간할 때, 각 프로브가 저장한 거리 모멘트(4.3)로 가시성을 계산한다. 셰이딩 점까지 거리가 프로브 평균 거리보다 멀면 벽 뒤로 보고 분산 기반으로 가중치를 깎는다. `uChebyshev`로 켜고 끌 수 있다(위 OFF/ON 비교).
+
+```glsl
+// src/ddgi.js — patch 셰이더 sampleIrradiance()
+vec2 mom = sampleDepth(p, dirPP);
+float mean = mom.x;
+float variance = max(mom.y - mean*mean, 2e-4);
+float vis = 1.0;
+if(dist > mean){                        // 프로브 평균 거리보다 멀면 = 벽 뒤로 추정
+  float dd = dist - mean;
+  vis = variance / (variance + dd*dd);  // 체비셰프 부등식
+  vis = vis*vis*vis;
+}
+w *= mix(1.0, max(vis, 0.02), uChebyshev);
+```
+
 - **설계 노트(정직한 관찰):** 본 구현은 gather 단계에서 이미 SDF 가시성을 계산하므로 누수가 본질적으로 적다. 따라서 Chebyshev는 주로 **트라이리니어 보간 단계의 잔여 누수**를 잡는 보정 역할이다.
 
 | Chebyshev OFF | Chebyshev ON |
@@ -152,6 +210,19 @@
 
 ### 4.5 동적 갱신
 - 등불 위치를 매 프레임 gather 셰이더에 전달하고, 핑퐁 타깃으로 프로브를 지속 갱신 → 광원이 움직이면 간접광도 실시간으로 따라온다. (§2.4 Dynamic 그림)
+
+매 프레임 `setLantern`으로 등불 위치를 넘기고, 결과를 A/B 두 타깃에 번갈아(핑퐁) 쌓는다. `uBlend`가 0.08이라 한 프레임에 8%만 반영되므로, 광원이 움직이면 몇 프레임에 걸쳐 부드럽게 따라온다.
+
+```js
+// src/ddgi.js
+setLantern(pos, intensity){ this.gatherMat.uniforms.uLanternPos.value.copy(pos); ... }
+
+// update() — 핑퐁 누적
+this.blendMat.uniforms.uPrev.value  = this.irrB.textures[0];     // 이전 프레임
+this.blendMat.uniforms.uBlend.value = this._frame < 2 ? 1.0 : 0.08;
+r.setRenderTarget(this.irrA); r.render(this._fsScene, this._fsCam);
+const t = this.irrA; this.irrA = this.irrB; this.irrB = t;       // A <-> B 스왑
+```
 
 ### 4.6 한계 및 관찰 (정직한 분석)
 
