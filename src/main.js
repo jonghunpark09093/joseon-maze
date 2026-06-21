@@ -174,7 +174,9 @@ function startGame() {
   if (dead) { location.reload(); return; }
   started = true;
   overlay.classList.add('hidden');
-  bgAudio.play().catch(() => {}); // user gesture → satisfies autoplay policy
+  // Unlock audio within this user gesture (play+pause); the loop plays it only
+  // when a predator is near, so the game starts silent.
+  bgAudio.play().then(() => bgAudio.pause()).catch(() => {});
   canvas.requestPointerLock?.();
 }
 overlay.addEventListener('click', startGame);
@@ -345,10 +347,12 @@ loadModel(modelUrl('tiger.glb')).then((m) => {
   tiger.setModel(m);
 });
 
-// Looping background horror track (played from the first user gesture). M mutes.
+// Horror track — NOT background music. It only plays while a predator is
+// actively after the player (ghost chasing or tiger pouncing) and stops the
+// moment the threat passes. M mutes it entirely.
 const bgAudio = new Audio(`${import.meta.env.BASE_URL}audio/horror.mp3`);
 bgAudio.loop = true;
-bgAudio.volume = 0.55;
+bgAudio.volume = 0.6;
 
 // A blood-red flash when caught — a cheap but effective jump scare. The frozen
 // scene (predator lunging at the player) stays behind it for the instant before
@@ -438,7 +442,7 @@ function updateLantern(dt) {
 
 // Dev-only debug handle for inspecting the scene from the console.
 if (import.meta.env.DEV) {
-  window.__game = { THREE, scene, camera, maze, lantern, ddgi, pursuer, tiger, viewScene, viewCamera, renderer };
+  window.__game = { THREE, scene, camera, maze, lantern, ddgi, pursuer, tiger, viewScene, viewCamera, renderer, bgAudio };
   // Deterministic camera orientation for repeatable report captures.
   window.__setLook = (y, p = 0) => { yaw = y; pitch = p; };
   // Save the current frame into captures/<name>.png via the dev capture endpoint.
@@ -471,6 +475,16 @@ function animate() {
   if (started && !won && !dead) {
     if (pursuer.update(dt, camera.position)) gameOver();
     if (tiger.update(dt, camera.position)) gameOver();
+  }
+
+  // Horror track only while a predator is actively after you; restart it from
+  // the top each time a chase begins, and cut it the moment you're safe again.
+  const threat = started && !won && !dead &&
+    (pursuer.state === 'chase' || tiger.state === 'pounce');
+  if (threat) {
+    if (bgAudio.paused) { bgAudio.currentTime = 0; bgAudio.play().catch(() => {}); }
+  } else if (!bgAudio.paused) {
+    bgAudio.pause();
   }
 
   ddgi.setLantern(lantern.position, lantern.intensity);
