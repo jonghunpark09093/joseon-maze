@@ -284,10 +284,42 @@ let won = false;
 let dead = false;
 const exitWorld = maze.cellToWorld(maze.exitCell.gx, maze.exitCell.gz);
 
-// A faint guiding glow at the exit.
-const exitLight = new THREE.PointLight(0x88ccff, 1.4, 10, 2);
+// A faint guiding glow at the exit — cool moonlight spilling from outside.
+const exitLight = new THREE.PointLight(0x9cc8ff, 2.4, 12, 2);
 exitLight.position.set(exitWorld.x, 1.4, exitWorld.z);
 scene.add(exitLight);
+
+// A wooden Joseon-style gate marking the goal. Built procedurally (two posts, a
+// lintel, and a plank door) so the exit reads as a real destination instead of
+// just a glow. Oriented to face the corridor the player approaches from.
+(function buildExitGate() {
+  const H = maze.wallHeight;
+  const W = maze.cellSize;
+  const post = new THREE.MeshStandardMaterial({ color: 0x5a4028, roughness: 0.9 });
+  const plank = new THREE.MeshStandardMaterial({
+    color: 0x7a5430, roughness: 0.82,
+    emissive: 0x271203, emissiveIntensity: 0.6, // faint warm glow so it reads as the goal
+  });
+  const gate = new THREE.Group();
+
+  const postGeo = new THREE.BoxGeometry(0.34, H, 0.34);
+  const pL = new THREE.Mesh(postGeo, post); pL.position.set(-W / 2 + 0.25, H / 2, 0);
+  const pR = new THREE.Mesh(postGeo, post); pR.position.set(W / 2 - 0.25, H / 2, 0);
+  const lintel = new THREE.Mesh(new THREE.BoxGeometry(W, 0.5, 0.5), post);
+  lintel.position.set(0, H - 0.25, 0);
+  const door = new THREE.Mesh(new THREE.BoxGeometry(W - 0.7, H - 0.6, 0.16), plank);
+  door.position.set(0, (H - 0.6) / 2, 0.02);
+  for (const m of [pL, pR, lintel, door]) { m.castShadow = true; m.receiveShadow = true; }
+  gate.add(pL, pR, lintel, door);
+
+  gate.position.set(exitWorld.x, 0, exitWorld.z);
+  // The default gate faces ±Z; if the cell's opening runs along X, turn it 90°.
+  const ex = maze.exitCell.gx, ez = maze.exitCell.gz;
+  if (!maze.isWallCell(ex + 1, ez) || !maze.isWallCell(ex - 1, ez)) {
+    gate.rotation.y = Math.PI / 2;
+  }
+  scene.add(gate);
+})();
 
 // --- Pursuer (the thing in the dark) --------------------------------------
 const pursuer = new Pursuer(maze, scene);
@@ -300,7 +332,7 @@ loadModel(modelUrl('pursuer.glb')).then((m) => m && pursuer.setModel(m));
 const tiger = new Tiger(maze, scene);
 loadModel(modelUrl('tiger.glb')).then((m) => {
   if (!m) return;
-  m.root.scale.setScalar(0.018); // ~1.0 × 2.1 × 4.3 world units (a big cat)
+  m.root.scale.setScalar(0.0153); // ~0.9 × 1.8 × 3.7 world units (a big cat)
   tiger.setModel(m);
 });
 
