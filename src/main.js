@@ -229,6 +229,15 @@ const right = new THREE.Vector3();
 const tmp = new THREE.Vector3();
 const lanternWorld = new THREE.Vector3();
 
+// Sprint stamina (0..1). Running drains it; it regenerates when not sprinting.
+// When it hits zero the player is "exhausted" and locked to a walk until it
+// recovers past a threshold — so you can't escape the ghost by holding Shift.
+let stamina = 1;
+let exhausted = false;
+const STAMINA_DRAIN = 0.34;     // per second while sprinting
+const STAMINA_REGEN = 0.22;     // per second while recovering
+const EXHAUST_RECOVER = 0.35;   // stamina needed to sprint again after exhaustion
+
 function move(dt) {
   if (!started) return;
 
@@ -243,9 +252,22 @@ function move(dt) {
   if (keys['KeyS']) iz -= 1;
   if (keys['KeyD']) ix += 1;
   if (keys['KeyA']) ix -= 1;
-  if (ix === 0 && iz === 0) return;
+  const moving = !(ix === 0 && iz === 0);
 
-  const speed = keys['ShiftLeft'] || keys['ShiftRight'] ? RUN_SPEED : WALK_SPEED;
+  // Stamina: sprint only when holding Shift, actually moving, and not spent.
+  const wantSprint = keys['ShiftLeft'] || keys['ShiftRight'];
+  const sprinting = wantSprint && moving && stamina > 0 && !exhausted;
+  if (sprinting) {
+    stamina = Math.max(0, stamina - STAMINA_DRAIN * dt);
+    if (stamina === 0) exhausted = true;
+  } else {
+    stamina = Math.min(1, stamina + STAMINA_REGEN * dt);
+    if (exhausted && stamina >= EXHAUST_RECOVER) exhausted = false;
+  }
+
+  if (!moving) return;
+
+  const speed = sprinting ? RUN_SPEED : WALK_SPEED;
   tmp.set(0, 0, 0);
   tmp.addScaledVector(forward, iz);
   tmp.addScaledVector(right, ix);
@@ -288,14 +310,35 @@ loadModel(modelUrl('tiger.glb')).then((m) => {
 const ghostAudio = new GhostAudio();
 let audioOn = false;
 
+// A blood-red flash when caught — a cheap but effective jump scare. The frozen
+// scene (predator lunging at the player) stays behind it for the instant before
+// the game-over screen appears.
+function jumpScare() {
+  const f = document.createElement('div');
+  f.style.cssText =
+    'position:fixed;inset:0;z-index:100;pointer-events:none;' +
+    'background:radial-gradient(circle at 50% 50%, #ff0000 0%, #6a0000 70%, #200 100%)';
+  f.style.opacity = '0';
+  document.body.appendChild(f);
+  f.animate(
+    [{ opacity: 0 }, { opacity: 0.92, offset: 0.12 }, { opacity: 0.55, offset: 0.5 }, { opacity: 0 }],
+    { duration: 750, easing: 'ease-out' }
+  ).onfinish = () => f.remove();
+}
+
 function gameOver() {
   if (dead || won) return;
   dead = true;
   started = false;
   document.exitPointerLock?.();
-  overlay.classList.remove('hidden');
-  overlay.querySelector('h1').textContent = '붙 잡 혔 다';
-  overlay.querySelector('.start').textContent = '화면을 클릭해 다시 시작';
+  jumpScare();
+  if (audioOn) ghostAudio.scream();
+  // Let the flash play before the game-over overlay covers the screen.
+  setTimeout(() => {
+    overlay.classList.remove('hidden');
+    overlay.querySelector('h1').textContent = '붙 잡 혔 다';
+    overlay.querySelector('.start').textContent = '화면을 클릭해 다시 시작';
+  }, 450);
 }
 
 function checkWin() {
@@ -414,7 +457,15 @@ function animate() {
     } else if (Math.min(d, td) < 12) {
       danger = ' · <span style="color:#ffb040">인기척</span>';
     }
-    hud.innerHTML = `위치 [${g.gx}, ${g.gz}] · 출구 [${maze.exitCell.gx}, ${maze.exitCell.gz}]${danger}`;
+    // Stamina bar: blue while usable, red while exhausted (walk-locked).
+    const pct = Math.round(stamina * 100);
+    const barColor = exhausted ? '#ff5555' : '#86c8ff';
+    const stamBar =
+      `<br>기력 <span style="display:inline-block;width:90px;height:8px;` +
+      `background:#2a2a2a;border:1px solid #000;vertical-align:middle">` +
+      `<span style="display:block;height:100%;width:${pct}%;background:${barColor}"></span></span>` +
+      (exhausted ? ' <span style="color:#ff7a7a">지쳤다</span>' : '');
+    hud.innerHTML = `위치 [${g.gx}, ${g.gz}] · 출구 [${maze.exitCell.gx}, ${maze.exitCell.gz}]${danger}${stamBar}`;
   }
 
   renderer.autoClear = true;
