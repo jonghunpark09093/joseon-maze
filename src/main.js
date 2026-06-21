@@ -368,8 +368,9 @@ function gameOver() {
   // Let the flash play before the game-over overlay covers the screen.
   setTimeout(() => {
     overlay.classList.remove('hidden');
-    overlay.querySelector('h1').textContent = '붙 잡 혔 다';
-    overlay.querySelector('.start').textContent = '화면을 클릭해 다시 시작';
+    overlay.querySelector('.intro').style.display = 'none'; // no instructions on retry
+    overlay.querySelector('h1').textContent = 'Died';
+    overlay.querySelector('.start').textContent = 'Click to restart';
   }, 450);
 }
 
@@ -382,8 +383,9 @@ function checkWin() {
     started = false;
     document.exitPointerLock?.();
     overlay.classList.remove('hidden');
-    overlay.querySelector('h1').textContent = '탈 출 성 공';
-    overlay.querySelector('.start').textContent = '당신은 산을 빠져나왔다.';
+    overlay.querySelector('.intro').style.display = 'none'; // no instructions on the end screen
+    overlay.querySelector('h1').textContent = 'Escape';
+    overlay.querySelector('.start').textContent = '';
   }
 }
 
