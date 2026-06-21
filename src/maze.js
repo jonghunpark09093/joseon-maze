@@ -65,28 +65,33 @@ export class Maze {
     return best;
   }
 
-  // A floor cell at a *medium* distance from the player's start — scaled to the
-  // maze (roughly 35–60% of the way to the exit). Far enough to be outside the
-  // pursuer's sense radius at spawn (so the player gets a head start instead of
-  // being chased from second one), close enough that the slow stalk reaches
-  // them within the run.
-  pursuerSpawn() {
+  // A random floor cell whose BFS distance from the start is within [lo,hi] as a
+  // fraction of the maze's maximum distance. Used to place predators at a
+  // *medium* distance so the player gets a head start instead of being engaged
+  // in the first seconds.
+  spawnAtFraction(lo, hi) {
     const dist = this._bfsDistances(this.startCell);
     let maxD = 0;
     for (let gz = 0; gz < this.gh; gz++) {
       for (let gx = 0; gx < this.gw; gx++) if (dist[gz][gx] > maxD) maxD = dist[gz][gx];
     }
-    const lo = Math.round(maxD * 0.35);
-    const hi = Math.round(maxD * 0.6);
+    const a = Math.round(maxD * lo);
+    const b = Math.round(maxD * hi);
     const candidates = [];
     for (let gz = 0; gz < this.gh; gz++) {
       for (let gx = 0; gx < this.gw; gx++) {
         const d = dist[gz][gx];
-        if (d >= lo && d <= hi) candidates.push({ gx, gz });
+        if (d >= a && d <= b) candidates.push({ gx, gz });
       }
     }
     if (!candidates.length) return { ...this.exitCell };
     return candidates[(Math.random() * candidates.length) | 0];
+  }
+
+  // Pursuer (ghost): ~35–60% of the way in — outside its sense radius at spawn,
+  // but reachable by the slow stalk during the run.
+  pursuerSpawn() {
+    return this.spawnAtFraction(0.35, 0.6);
   }
 
   // A random reachable floor cell whose BFS distance from `from` is within

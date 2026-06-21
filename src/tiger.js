@@ -39,9 +39,10 @@ export class Tiger {
     this.group.add(eyeL, eyeR);
     this.eyes = [eyeL, eyeR];
 
-    // Spawn a few corridors from the entrance — close enough to be encountered
-    // while roaming, but not pouncing the player at the door.
-    const sp = maze.roamTarget(maze.startCell, 5, 10);
+    // Spawn at a medium-to-far distance (like the ghost, but a touch farther so
+    // the two predators don't both arrive at once) — gives the player a head
+    // start instead of being pounced in the first seconds.
+    const sp = maze.spawnAtFraction(0.5, 0.85);
     const s = maze.cellToWorld(sp.gx, sp.gz);
     this.pos = new THREE.Vector3(s.x, 0, s.z);
     this.group.position.copy(this.pos);
