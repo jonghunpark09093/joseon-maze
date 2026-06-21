@@ -245,10 +245,30 @@ export class Maze {
       }
     }
     const wallGeo = new THREE.BoxGeometry(this.cellSize, this.wallHeight, this.cellSize);
-    // Warm reddish "단청" tone so indirect color bleeding will be visible later.
+    wallGeo.setAttribute('uv1', wallGeo.getAttribute('uv')); // aoMap 2nd UV set
+
+    // PBR wall (Poly Haven worn-wood planks). A warm reddish tint pushes the
+    // brown planks toward the "단청" tone, so the directly-lit walls harmonise
+    // with the red indirect bounce. (The DDGI bounce hue itself is driven by
+    // `albedo.wall` below, not this texture, so color bleeding stays red.)
+    const wtex = (name, srgb = false) => {
+      const t = new THREE.TextureLoader().load(
+        `${import.meta.env.BASE_URL}textures/wall/${name}`
+      );
+      t.wrapS = t.wrapT = THREE.RepeatWrapping;
+      // ~2m per tile, texels kept square to the box faces (4 × 3.2).
+      t.repeat.set(this.cellSize / 2, this.wallHeight / 2 * 0.8);
+      t.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace;
+      t.anisotropy = 8;
+      return t;
+    };
     const wallMat = new THREE.MeshStandardMaterial({
-      color: 0x6e2a22,
-      roughness: 0.85,
+      color: 0x9c4e36,          // warm 단청-ish tint over the brown wood
+      map: wtex('diff.jpg', true),
+      normalMap: wtex('nor_gl.jpg'),
+      roughnessMap: wtex('rough.jpg'),
+      aoMap: wtex('ao.jpg'),
+      roughness: 1.0,
       metalness: 0.0,
     });
     const inst = new THREE.InstancedMesh(wallGeo, wallMat, wallCells.length);
