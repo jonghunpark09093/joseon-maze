@@ -11,9 +11,9 @@ import * as THREE from 'three';
 export class Pursuer {
   constructor(maze, scene, {
     catchRadius = 0.8,
-    lurkSpeed = 1.6,
+    lurkSpeed = 3.4,
     chaseSpeed = 5.2,
-    senseRadius = 16,   // world units: within this (even through walls) it wakes
+    senseRadius = 20,   // world units: within this (even through walls) it wakes
     loseRadius = 30,    // must get beyond this to start being forgotten
     forgetTime = 4,     // seconds beyond loseRadius before it gives up
   } = {}) {
@@ -171,13 +171,13 @@ export class Pursuer {
         this.path = this._bfs(mg, pg);
       }
     } else {
-      // Lurk: drift between random cells so the ghost is never perfectly still.
-      if (!this.target || (mg.gx === this.target.gx && mg.gz === this.target.gz)) {
-        this.target = this.maze.roamTarget(mg, 3);
-        this.path = this._bfs(mg, this.target);
-      } else if (this.repathTimer <= 0) {
-        this.repathTimer = 0.8;
-        if (!this.path.length) this.path = this._bfs(mg, this.target);
+      // Lurk = a slow, relentless STALK toward the player (not random roaming).
+      // A ghost always knows where you are; it just closes in slowly until it
+      // senses you up close and breaks into the fast chase. This guarantees it
+      // actually finds you instead of wandering near its spawn forever.
+      if (this.repathTimer <= 0) {
+        this.repathTimer = 0.6;
+        this.path = this._bfs(mg, pg);
       }
     }
 

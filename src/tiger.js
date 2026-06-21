@@ -39,8 +39,9 @@ export class Tiger {
     this.group.add(eyeL, eyeR);
     this.eyes = [eyeL, eyeR];
 
-    // Spawn far from the entrance so the player isn't pounced at the door.
-    const sp = maze.roamTarget(maze.startCell, 8);
+    // Spawn a few corridors from the entrance — close enough to be encountered
+    // while roaming, but not pouncing the player at the door.
+    const sp = maze.roamTarget(maze.startCell, 5, 10);
     const s = maze.cellToWorld(sp.gx, sp.gz);
     this.pos = new THREE.Vector3(s.x, 0, s.z);
     this.group.position.copy(this.pos);
@@ -136,7 +137,11 @@ export class Tiger {
     const cellDist = Math.abs(mg.gx - pg.gx) + Math.abs(mg.gz - pg.gz);
 
     // --- State transitions: see the player → pounce; lose sight → roam ------
-    const sees = cellDist <= this.sightCells && this._hasLineOfSight(mg, pg);
+    // Triggers on a clear line of sight down a corridor, OR when the tiger has
+    // wandered right up next to the player (≤2 cells) — it smells you up close
+    // even without a straight sightline, so a roaming tiger still engages.
+    const sees =
+      (cellDist <= this.sightCells && this._hasLineOfSight(mg, pg)) || cellDist <= 2;
     if (sees) {
       this.state = 'pounce';
       this.loseSightTimer = 2.5; // keep charging this long after losing sight

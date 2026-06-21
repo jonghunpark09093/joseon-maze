@@ -65,30 +65,43 @@ export class Maze {
     return best;
   }
 
-  // A floor cell a few steps from the exit — the pursuer lurks deep in the
-  // maze, near the goal the player is heading toward.
+  // A floor cell at a *medium* distance from the player's start — scaled to the
+  // maze (roughly 35–60% of the way to the exit). Far enough to be outside the
+  // pursuer's sense radius at spawn (so the player gets a head start instead of
+  // being chased from second one), close enough that the slow stalk reaches
+  // them within the run.
   pursuerSpawn() {
-    const dist = this._bfsDistances(this.exitCell);
+    const dist = this._bfsDistances(this.startCell);
+    let maxD = 0;
+    for (let gz = 0; gz < this.gh; gz++) {
+      for (let gx = 0; gx < this.gw; gx++) if (dist[gz][gx] > maxD) maxD = dist[gz][gx];
+    }
+    const lo = Math.round(maxD * 0.35);
+    const hi = Math.round(maxD * 0.6);
     const candidates = [];
     for (let gz = 0; gz < this.gh; gz++) {
       for (let gx = 0; gx < this.gw; gx++) {
         const d = dist[gz][gx];
-        if (d >= 2 && d <= 5) candidates.push({ gx, gz });
+        if (d >= lo && d <= hi) candidates.push({ gx, gz });
       }
     }
     if (!candidates.length) return { ...this.exitCell };
     return candidates[(Math.random() * candidates.length) | 0];
   }
 
-  // A random reachable floor cell, optionally at least `minDist` BFS cells from
-  // `from`. Used by the roaming tiger for its spawn and wander targets.
-  roamTarget(from = this.startCell, minDist = 0) {
-    const dist = minDist > 0 ? this._bfsDistances(from) : null;
+  // A random reachable floor cell whose BFS distance from `from` is within
+  // [minDist, maxDist]. Used by the roaming tiger for its spawn (bounded range)
+  // and wander targets (minDist only).
+  roamTarget(from = this.startCell, minDist = 0, maxDist = Infinity) {
+    const dist = minDist > 0 || maxDist < Infinity ? this._bfsDistances(from) : null;
     const cells = [];
     for (let gz = 0; gz < this.gh; gz++) {
       for (let gx = 0; gx < this.gw; gx++) {
         if (this.isWallCell(gx, gz)) continue;
-        if (dist && dist[gz][gx] < minDist) continue;
+        if (dist) {
+          const d = dist[gz][gx];
+          if (d < minDist || d > maxDist) continue;
+        }
         cells.push({ gx, gz });
       }
     }
