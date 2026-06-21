@@ -495,7 +495,7 @@ function animate() {
     const pct = Math.round(stamina * 100);
     const barColor = exhausted ? '#ff5555' : '#86c8ff';
     const stamBar =
-      `<br>기력 <span style="display:inline-block;width:90px;height:8px;` +
+      `<br>기력 <span style="display:inline-block;width:120px;height:11px;` +
       `background:#2a2a2a;border:1px solid #000;vertical-align:middle">` +
       `<span style="display:block;height:100%;width:${pct}%;background:${barColor}"></span></span>` +
       (exhausted ? ' <span style="color:#ff7a7a">지쳤다</span>' : '');
